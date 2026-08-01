@@ -1,0 +1,110 @@
+"""Authentication, password hashing, and the central visibility (security) rule.
+
+Password hashing uses hashlib.scrypt (Python stdlib) -- no native crypto deps.
+JWT uses PyJWT (HS256).
+"""
+import base64
+import hashlib
+import hmac
+import os
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+
+import jwt
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
+from .config import settings
+from .db import get_db
+from .models import AppUser
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/login")
+
+# --- scrypt parameters ---
+_N, _R, _P, _DKLEN = 2 ** 14, 8, 1, 32
+
+
+def hash_password(password: str) -> str:
+    salt = os.urandom(16)
+    dk = hashlib.scrypt(password.encode("utf-8"), salt=salt, n=_N, r=_R, p=_P, dklen=_DKLEN)
+    return f"scrypt${base64.b64encode(salt).decode()}${base64.b64encode(dk).decode()}"
+
+
+def verify_password(password: str, stored: str) -> bool:
+    try:
+        algo, salt_b64, hash_b64 = stored.split("$")
+        if algo != "scrypt":
+            return False
+        salt = base64.b64decode(salt_b64)
+        expected = base64.b64decode(hash_b64)
+        dk = hashlib.scrypt(password.encode("utf-8"), salt=salt, n=_N, r=_R, p=_P, dklen=len(expected))
+        return hmac.compare_digest(dk, expected)
+    except Exception:
+        return False
+
+
+def create_access_token(subject: str | int) -> str:
+    expire = datetime.now(tz=timezone.utc) + timedelta(minutes=settings.access_token_expire_minutes)
+    payload = {"sub": str(subject), "exp": expire}
+    return jwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)
+
+
+def get_current_user(
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db),
+) -> AppUser:
+    cred_exc = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
+        user_id = int(payload.get("sub"))
+    except Exception:
+        raise cred_exc
+    user = db.get(AppUser, user_id)
+    if user is None or not user.is_active:
+        raise cred_exc
+    return user
+
+
+@dataclass
+class Visibility:
+    """Resolved data-access scope for the current request."""
+    user: AppUser
+    can_view_all: bool
+    owner_ids: list[str] | None  # None == no restriction (see everything)
+
+    @property
+    def sees_nothing(self) -> bool:
+        return not self.can_view_all and not self.owner_ids
+
+
+def get_visibility(
+    user: AppUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Visibility:
+    """Central security rule: which owner_ids may this user see?
+
+    - can_view_all (CEO/admin) -> None (everything)
+    - otherwise -> self + all descendants via the ManagerId hierarchy
+      (fn_subordinate_user_ids). Swappable to the UserRole hierarchy later.
+    """
+    if user.can_view_all:
+        return Visibility(user, True, None)
+    if not user.salesforce_user_id:
+        return Visibility(user, False, [])  # no SF mapping -> no rows
+    rows = db.execute(
+        text("SELECT user_id FROM fn_subordinate_user_ids(:me)"),
+        {"me": user.salesforce_user_id},
+    ).all()
+    return Visibility(user, False, [r[0] for r in rows])
+
+
+def require_admin(user: AppUser = Depends(get_current_user)) -> AppUser:
+    if not user.is_admin:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Admin privileges required")
+    return user

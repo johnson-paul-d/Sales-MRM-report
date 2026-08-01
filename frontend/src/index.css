@@ -1,0 +1,40 @@
+:root { color-scheme: light; }
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: #f1f5f9;
+  font-family: Inter, "Segoe UI", Roboto, system-ui, sans-serif;
+}
+
+/* ---- AG Grid (quartz) refinement ---- */
+.ag-theme-quartz {
+  --ag-font-family: Inter, "Segoe UI", system-ui, sans-serif;
+  --ag-font-size: 13px;
+  --ag-header-height: 42px;
+  --ag-row-height: 40px;
+  --ag-header-background-color: #f8fafc;
+  --ag-header-foreground-color: #475569;
+  --ag-border-color: #eaeef4;
+  --ag-row-border-color: #f1f5f9;
+  --ag-odd-row-background-color: #fbfcfe;
+  --ag-row-hover-color: #eef2ff;
+  --ag-selected-row-background-color: #e0e7ff;
+  --ag-foreground-color: #1e293b;
+  --ag-header-column-separator-display: none;
+  --ag-wrapper-border-radius: 12px;
+  --ag-input-focus-border-color: #6366f1;
+}
+.ag-theme-quartz .ag-header-cell-text { font-weight: 700; letter-spacing: 0.2px; }
+.ag-theme-quartz .ag-root-wrapper { border-color: #e6e9f0; }
+
+/* ---- thin, modern scrollbars ---- */
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: #cbd5e1; border-radius: 8px;
+  border: 2px solid transparent; background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover { background: #94a3b8; background-clip: content-box; }

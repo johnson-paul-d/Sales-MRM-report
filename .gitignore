@@ -1,0 +1,42 @@
+# ============================================================
+#  Sieger Sales Intelligence Platform — root .gitignore
+# ============================================================
+
+# --- Secrets / environment (NEVER commit real values) ---
+.env
+.env.local
+.env.*.local
+# NOTE: *.env.example templates ARE committed (not matched above).
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- Node / Vite frontend ---
+node_modules/
+dist/
+dist-ssr/
+build/
+.vite/
+*.local
+
+# --- Editors / IDEs ---
+.vscode/
+.idea/
+*.swp
+*~
+
+# --- OS cruft ---
+.DS_Store
+Thumbs.db
+
+# --- Claude Code local settings ---
+.claude/

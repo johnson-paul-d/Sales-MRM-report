@@ -1,0 +1,76 @@
+// EarliestQuotesByMonth -- calculated table (Power BI "New table").
+// One row per SIEGER PARKING opportunity: its earliest quote (by Presented Date),
+// dated by the earliest quote CREATED date. App equivalent: vw_earliest_quotes_by_month.
+ADDCOLUMNS (
+    SUMMARIZE (
+        FILTER ( 'Quote', RELATED ( Opportunity[Division__c] ) = "SIEGER PARKING" ),
+        'Quote'[OpportunityId],
+        "EarliestPresentedDate", CALCULATE ( MIN ( 'Quote'[Created_Date__c] ) )
+    ),
+    "Quote Value",
+        CALCULATE (
+            MAX ( 'Quote'[TotalPrice] ),
+            TOPN (
+                1,
+                FILTER (
+                    'Quote',
+                    'Quote'[OpportunityId] = EARLIER ( 'Quote'[OpportunityId] )
+                        && RELATED ( Opportunity[Division__c] ) = "SIEGER PARKING"
+                ),
+                'Quote'[Presented_Date__c], ASC
+            )
+        ),
+    "EarliestPresentedDateONLY",
+        DATE ( YEAR ( [EarliestPresentedDate] ), MONTH ( [EarliestPresentedDate] ), DAY ( [EarliestPresentedDate] ) ),
+    "User Id",
+        CALCULATE (
+            MAX ( 'Quote'[OwnerId] ),
+            TOPN (
+                1,
+                FILTER (
+                    'Quote',
+                    'Quote'[OpportunityId] = EARLIER ( 'Quote'[OpportunityId] )
+                        && RELATED ( Opportunity[Division__c] ) = "SIEGER PARKING"
+                ),
+                'Quote'[Presented_Date__c], ASC
+            )
+        ),
+    "Product Name",
+        VAR EarliestQuoteId =
+            CALCULATE (
+                MAX ( 'Quote'[Id] ),
+                TOPN (
+                    1,
+                    FILTER (
+                        'Quote',
+                        'Quote'[OpportunityId] = EARLIER ( 'Quote'[OpportunityId] )
+                            && RELATED ( Opportunity[Division__c] ) = "SIEGER PARKING"
+                    ),
+                    'Quote'[Presented_Date__c], ASC
+                )
+            )
+        RETURN
+            CALCULATE (
+                MAX ( 'Quote Line Item'[Product Name] ),
+                FILTER ( 'Quote Line Item', 'Quote Line Item'[QuoteId] = EarliestQuoteId )
+            ),
+    "Quantity",
+        VAR EarliestQuoteId =
+            CALCULATE (
+                MAX ( 'Quote'[Id] ),
+                TOPN (
+                    1,
+                    FILTER (
+                        'Quote',
+                        'Quote'[OpportunityId] = EARLIER ( 'Quote'[OpportunityId] )
+                            && RELATED ( Opportunity[Division__c] ) = "SIEGER PARKING"
+                    ),
+                    'Quote'[Presented_Date__c], ASC
+                )
+            )
+        RETURN
+            CALCULATE (
+                SUM ( 'Quote Line Item'[Quantity] ),
+                FILTER ( 'Quote Line Item', 'Quote Line Item'[QuoteId] = EarliestQuoteId )
+            )
+)
