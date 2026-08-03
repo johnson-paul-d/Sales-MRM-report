@@ -1,0 +1,9 @@
+# Dependencies for the Salesforce -> Postgres ETL (salesforce_to_postgres.py).
+# Install into a dedicated venv:  python -m venv .venv-etl
+#                                 .venv-etl\Scripts\python -m pip install -r requirements-etl.txt
+requests>=2.31
+pandas>=2.2
+python-dotenv>=1.0
+simple-salesforce>=1.12
+SQLAlchemy>=2.0
+psycopg2-binary>=2.9
