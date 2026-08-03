@@ -8,6 +8,7 @@ import { REPORTS } from './reportConfigs'
 import { useReport } from '../api/hooks'
 import { useReportFilters } from '../state/FiltersContext'
 import { fmtINR, fmtInt } from '../components/formatters'
+import { CHART } from '../theme'
 
 interface Row {
   user_name?: string
@@ -49,6 +50,7 @@ const hbar = (items: Datum[], color: string) => ({
 })
 
 const donut = (items: Datum[]) => ({
+  color: CHART.palette,
   tooltip: { trigger: 'item', valueFormatter: inr },
   legend: { type: 'scroll', bottom: 0, textStyle: { fontSize: 11 } },
   series: [{
@@ -69,7 +71,7 @@ const columns = (items: Datum[]) => ({
   series: [{
     type: 'bar',
     data: items.map((i) => i.value),
-    itemStyle: { color: '#ef4444', borderRadius: [4, 4, 0, 0] },
+    itemStyle: { color: CHART.lost, borderRadius: [4, 4, 0, 0] },
     barMaxWidth: 28,
   }],
 })
@@ -122,10 +124,10 @@ export default function ClosedLostPage() {
 
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2, mb: 2 }}>
             <ChartCard title="Why we lose — by Loss Reason">
-              <ReactECharts option={hbar(byReason, '#f97316')} style={{ height: 300 }} notMerge />
+              <ReactECharts option={hbar(byReason, CHART.lost)} style={{ height: 300 }} notMerge />
             </ChartCard>
             <ChartCard title="Lost Value by Salesperson">
-              <ReactECharts option={hbar(bySalesperson, '#6366f1')} style={{ height: 300 }} notMerge />
+              <ReactECharts option={hbar(bySalesperson, CHART.open)} style={{ height: 300 }} notMerge />
             </ChartCard>
             <ChartCard title="By Division">
               <ReactECharts option={donut(byDivision)} style={{ height: 300 }} notMerge />

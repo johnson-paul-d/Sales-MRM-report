@@ -20,7 +20,9 @@ import FiberNewIcon from '@mui/icons-material/FiberNew'
 import SettingsIcon from '@mui/icons-material/Settings'
 import LogoutIcon from '@mui/icons-material/Logout'
 import BarChartIcon from '@mui/icons-material/BarChart'
+import SpaceDashboardIcon from '@mui/icons-material/SpaceDashboard'
 import { useAuth } from '../auth/AuthContext'
+import { BRAND } from '../theme'
 
 const DRAWER_WIDTH = 244
 
@@ -30,7 +32,10 @@ interface NavGroup { heading: string; items: NavItem[] }
 const NAV: NavGroup[] = [
   {
     heading: 'Overview',
-    items: [{ path: '/sales-tracker', label: 'Sales Tracker', icon: <InsightsIcon /> }],
+    items: [
+      { path: '/overview', label: 'Overview', icon: <SpaceDashboardIcon /> },
+      { path: '/sales-tracker', label: 'Sales Tracker', icon: <InsightsIcon /> },
+    ],
   },
   {
     heading: 'Pipeline',
@@ -130,7 +135,7 @@ export default function AppLayout() {
           [`& .MuiDrawer-paper`]: {
             width: DRAWER_WIDTH,
             boxSizing: 'border-box',
-            bgcolor: '#0f172a',
+            bgcolor: BRAND.black,
             color: '#cbd5e1',
             borderRight: 'none',
           },
@@ -167,11 +172,11 @@ export default function AppLayout() {
                         sx={{
                           mx: 1, my: 0.25, borderRadius: 2, py: 0.6,
                           color: active ? '#fff' : '#cbd5e1',
-                          bgcolor: active ? 'rgba(99,102,241,0.18)' : 'transparent',
-                          '&:hover': { bgcolor: active ? 'rgba(99,102,241,0.24)' : 'rgba(255,255,255,0.06)' },
+                          bgcolor: active ? 'rgba(155,36,35,0.32)' : 'transparent',
+                          '&:hover': { bgcolor: active ? 'rgba(155,36,35,0.42)' : 'rgba(255,255,255,0.06)' },
                         }}
                       >
-                        <ListItemIcon sx={{ minWidth: 34, color: active ? 'primary.light' : '#64748b' }}>
+                        <ListItemIcon sx={{ minWidth: 34, color: active ? '#e08b87' : '#857c70' }}>
                           {n.icon}
                         </ListItemIcon>
                         <ListItemText primary={n.label} primaryTypographyProps={{ fontSize: 13.5, fontWeight: active ? 700 : 500 }} />

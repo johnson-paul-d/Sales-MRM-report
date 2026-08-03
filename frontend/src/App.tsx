@@ -12,6 +12,7 @@ import ReportTablePage from './pages/ReportTablePage'
 import LeadsPage from './pages/LeadsPage'
 import NewOpportunityPage from './pages/NewOpportunityPage'
 import ClosedLostPage from './pages/ClosedLostPage'
+import OverviewPage from './pages/OverviewPage'
 import AdminPage from './pages/AdminPage'
 import { REPORTS } from './pages/reportConfigs'
 
@@ -31,7 +32,8 @@ export default function App() {
                 <Route path="/login" element={<LoginPage />} />
                 <Route element={<ProtectedRoute />}>
                   <Route element={<AppLayout />}>
-                    <Route index element={<Navigate to="/sales-tracker" replace />} />
+                    <Route index element={<Navigate to="/overview" replace />} />
+                    <Route path="/overview" element={<OverviewPage />} />
                     <Route path="/sales-tracker" element={<SalesTrackerPage />} />
                     <Route path="/closed-won" element={<ReportTablePage cfg={REPORTS['closed-won']} />} />
                     <Route path="/closed-lost" element={<ClosedLostPage />} />
@@ -46,7 +48,7 @@ export default function App() {
                     <Route path="/new-opportunity" element={<NewOpportunityPage />} />
                     <Route path="/leads" element={<LeadsPage />} />
                     <Route path="/admin" element={<AdminPage />} />
-                    <Route path="*" element={<Navigate to="/sales-tracker" replace />} />
+                    <Route path="*" element={<Navigate to="/overview" replace />} />
                   </Route>
                 </Route>
               </Routes>

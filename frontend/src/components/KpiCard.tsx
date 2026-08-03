@@ -7,7 +7,7 @@ interface Props {
   color?: string
 }
 
-export default function KpiCard({ label, value, sub, color = '#4f46e5' }: Props) {
+export default function KpiCard({ label, value, sub, color = '#9B2423' }: Props) {
   return (
     <Card
       sx={{
