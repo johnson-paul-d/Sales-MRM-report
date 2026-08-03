@@ -15,7 +15,14 @@ DB_URL = URL.create(
     database=settings.pg_database,
 )
 
-engine = create_engine(DB_URL, pool_pre_ping=True, future=True)
+engine = create_engine(
+    DB_URL,
+    pool_pre_ping=True,
+    future=True,
+    # Fail fast if the DB (reached over the Tailscale tunnel) isn't ready yet,
+    # instead of hanging startup/requests.
+    connect_args={"connect_timeout": 10},
+)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
 Base = declarative_base()
 

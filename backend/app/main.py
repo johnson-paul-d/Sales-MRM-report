@@ -4,6 +4,7 @@ Run (from the backend/ directory):
     uvicorn app.main:app --reload --port 8000
 Docs at http://localhost:8000/docs
 """
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -16,7 +17,14 @@ from .routers import auth, meta, reports, admin
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    init_db()  # ensure app schema + tables exist
+    # Best-effort: create the app schema/tables if missing. Never block or crash
+    # startup on a transient DB/tunnel hiccup -- the schema already exists in
+    # normal operation, and the app must still come up so its HTTP port opens
+    # (otherwise Render's health check kills the deploy).
+    try:
+        init_db()
+    except Exception as exc:  # noqa: BLE001
+        logging.getLogger("uvicorn.error").warning("init_db skipped at startup: %s", exc)
     yield
 
 

@@ -17,11 +17,12 @@ echo "[ts] starting tailscaled (userspace)…"
 echo "[ts] joining tailnet…"
 /usr/local/bin/tailscale up --authkey="${TS_AUTHKEY}" --hostname=render-mrm-backend --accept-dns=false
 
-echo "[ts] waiting for DB peer ${DB_TAILSCALE_IP}…"
-for _ in $(seq 1 30); do
-  if /usr/local/bin/tailscale ping "${DB_TAILSCALE_IP}" >/dev/null 2>&1; then
-    echo "[ts] peer reachable"; break
-  fi
+# Give the tunnel a few seconds to establish, but DON'T block startup for long:
+# uvicorn must open its port quickly or Render's health check fails the deploy.
+# init_db is best-effort (app/main.py), so the DB need not be reachable yet.
+echo "[ts] letting the tunnel establish (max ~12s)…"
+for _ in $(seq 1 6); do
+  /usr/local/bin/tailscale ping "${DB_TAILSCALE_IP}" >/dev/null 2>&1 && { echo "[ts] peer reachable"; break; }
   sleep 2
 done
 
