@@ -7,8 +7,8 @@
 # ---------------------------------------------------------------------------
 set -euo pipefail
 
-: "${TS_AUTHKEY:?set TS_AUTHKEY (ephemeral, reusable Tailscale auth key)}"
-: "${DB_TAILSCALE_IP:?set DB_TAILSCALE_IP (your PC's Tailscale 100.x.y.z address)}"
+: "${TS_AUTHKEY:?TS_AUTHKEY is required}"
+: "${DB_TAILSCALE_IP:?DB_TAILSCALE_IP is required}"
 LOCAL_PGPORT="${PG_PORT:-5432}"
 
 echo "[ts] starting tailscaled (userspace)…"
