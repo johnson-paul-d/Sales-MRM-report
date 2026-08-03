@@ -61,6 +61,7 @@ export const REPORTS: Record<string, ReportConfig> = {
       col('total_price', 'Line Total', 'inr'),
       col('stage_name', 'Stage'),
       col('close_date', 'Close Date', 'date'),
+      col('loss_reason', 'Loss Reason', 'text', { flex: 1 }),
       col('remarks', 'Remarks', 'text', { flex: 2 }),
     ],
   },

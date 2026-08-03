@@ -198,7 +198,8 @@ SELECT
     lt.activity_date      AS action_activity_date,
     q."Status"            AS quote_status,
     q."Sync_Quote__c"     AS sync_quote,
-    q."Presented_Date__c" AS presented_date
+    q."Presented_Date__c" AS presented_date,
+    o."Loss_Reason__c"    AS loss_reason
 FROM quotelineitem qli
 JOIN quote q            ON q."Id" = qli."QuoteId"
 LEFT JOIN opportunity o ON o."Id" = q."OpportunityId"

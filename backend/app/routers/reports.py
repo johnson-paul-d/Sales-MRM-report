@@ -101,7 +101,8 @@ def closed_lost(vis: Visibility = Depends(get_visibility),
     sql = _product_table(where,
         "v.stage_name = 'Closed Lost' AND v.sync_quote IS TRUE",
         ["MAX(v.account_name) AS account_name", "MAX(v.stage_name) AS stage_name",
-         "MAX(v.close_date) AS close_date", "MAX(v.division) AS division", "MAX(v.remarks) AS remarks"])
+         "MAX(v.close_date) AS close_date", "MAX(v.division) AS division", "MAX(v.remarks) AS remarks",
+         "MAX(v.loss_reason) AS loss_reason"])
     return {"rows": rows_as_dicts(db, sql, params)}
 
 

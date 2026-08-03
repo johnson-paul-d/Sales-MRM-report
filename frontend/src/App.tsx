@@ -11,6 +11,7 @@ import SalesTrackerPage from './pages/SalesTrackerPage'
 import ReportTablePage from './pages/ReportTablePage'
 import LeadsPage from './pages/LeadsPage'
 import NewOpportunityPage from './pages/NewOpportunityPage'
+import ClosedLostPage from './pages/ClosedLostPage'
 import AdminPage from './pages/AdminPage'
 import { REPORTS } from './pages/reportConfigs'
 
@@ -33,7 +34,7 @@ export default function App() {
                     <Route index element={<Navigate to="/sales-tracker" replace />} />
                     <Route path="/sales-tracker" element={<SalesTrackerPage />} />
                     <Route path="/closed-won" element={<ReportTablePage cfg={REPORTS['closed-won']} />} />
-                    <Route path="/closed-lost" element={<ReportTablePage cfg={REPORTS['closed-lost']} />} />
+                    <Route path="/closed-lost" element={<ClosedLostPage />} />
                     <Route path="/dropped" element={<ReportTablePage cfg={REPORTS['dropped']} />} />
                     <Route path="/open-funnel" element={<ReportTablePage cfg={REPORTS['open-funnel']} />} />
                     <Route path="/top-enquiries" element={<ReportTablePage cfg={REPORTS['top-enquiries']} />} />
