@@ -9,6 +9,7 @@ import { REPORTS } from './reportConfigs'
 import { useReport } from '../api/hooks'
 import { useReportFilters } from '../state/FiltersContext'
 import { fmtINR, fmtInt } from '../components/formatters'
+import { CHART } from '../theme'
 import type { SalesTrackerRow } from '../api/types'
 
 interface Agg {
@@ -78,14 +79,14 @@ export default function SalesTrackerPage() {
     tooltip: { trigger: 'axis', valueFormatter: (v: number) => fmtINR(v) },
     xAxis: { type: 'category', data: topWon.map((t) => t.user_name), axisLabel: { rotate: 35, fontSize: 10 } },
     yAxis: { type: 'value', axisLabel: { formatter: (v: number) => fmtINR(v) } },
-    series: [{ type: 'bar', name: 'Closed Won', data: topWon.map((t) => t.closed_won_value), itemStyle: { color: '#4f46e5', borderRadius: [4, 4, 0, 0] } }],
+    series: [{ type: 'bar', name: 'Closed Won', data: topWon.map((t) => t.closed_won_value), itemStyle: { color: CHART.won, borderRadius: [4, 4, 0, 0] } }],
   }
   const oppChart = {
     grid: { left: 8, right: 16, top: 20, bottom: 70, containLabel: true },
     tooltip: { trigger: 'axis' },
     xAxis: { type: 'category', data: topOpps.map((t) => t.user_name), axisLabel: { rotate: 35, fontSize: 10 } },
     yAxis: { type: 'value', minInterval: 1 },
-    series: [{ type: 'bar', name: 'Opportunities Created', data: topOpps.map((t) => t.opportunities_created), itemStyle: { color: '#0891b2', borderRadius: [4, 4, 0, 0] } }],
+    series: [{ type: 'bar', name: 'Opportunities Created', data: topOpps.map((t) => t.opportunities_created), itemStyle: { color: CHART.open, borderRadius: [4, 4, 0, 0] } }],
   }
 
   return (
@@ -97,13 +98,13 @@ export default function SalesTrackerPage() {
       ) : (
         <>
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2,1fr)', sm: 'repeat(3,1fr)', lg: 'repeat(7,1fr)' }, gap: 2, mb: 2 }}>
-            <KpiCard label="Visits" value={fmtInt(totals.visits)} color="#0891b2" />
-            <KpiCard label="Opps Created" value={fmtInt(totals.opps)} color="#6366f1" />
-            <KpiCard label="Open Quotes" value={fmtINR(totals.open)} color="#4f46e5" />
-            <KpiCard label="Live Quotes" value={fmtINR(totals.live)} color="#7c3aed" />
-            <KpiCard label="Closed Won" value={fmtINR(totals.won)} color="#059669" />
-            <KpiCard label="Closed Lost" value={fmtINR(totals.lost)} color="#dc2626" />
-            <KpiCard label="Dropped" value={fmtINR(totals.dropped)} color="#d97706" />
+            <KpiCard label="Visits" value={fmtInt(totals.visits)} color={CHART.neutral} />
+            <KpiCard label="Opps Created" value={fmtInt(totals.opps)} color={CHART.open} />
+            <KpiCard label="Open Quotes" value={fmtINR(totals.open)} color={CHART.live} />
+            <KpiCard label="Live Quotes" value={fmtINR(totals.live)} color="#C99A2E" />
+            <KpiCard label="Closed Won" value={fmtINR(totals.won)} color={CHART.won} />
+            <KpiCard label="Closed Lost" value={fmtINR(totals.lost)} color={CHART.lost} />
+            <KpiCard label="Dropped" value={fmtINR(totals.dropped)} color={CHART.dropped} />
           </Box>
 
           <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 1.5, borderBottom: 1, borderColor: 'divider' }}>

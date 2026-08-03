@@ -5,36 +5,38 @@ body {
   margin: 0;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: #f1f5f9;
-  font-family: Inter, "Segoe UI", Roboto, system-ui, sans-serif;
+  background: #F7F3EC;
+  font-family: "Effra", Inter, "Segoe UI", Roboto, system-ui, sans-serif;
 }
 
-/* ---- AG Grid (quartz) refinement ---- */
+/* ---- AG Grid (quartz) — Sieger brand ---- */
 .ag-theme-quartz {
-  --ag-font-family: Inter, "Segoe UI", system-ui, sans-serif;
+  --ag-font-family: "Effra", Inter, "Segoe UI", system-ui, sans-serif;
   --ag-font-size: 13px;
   --ag-header-height: 42px;
   --ag-row-height: 40px;
-  --ag-header-background-color: #f8fafc;
-  --ag-header-foreground-color: #475569;
-  --ag-border-color: #eaeef4;
-  --ag-row-border-color: #f1f5f9;
-  --ag-odd-row-background-color: #fbfcfe;
-  --ag-row-hover-color: #eef2ff;
-  --ag-selected-row-background-color: #e0e7ff;
-  --ag-foreground-color: #1e293b;
+  --ag-header-background-color: #faf6ef;
+  --ag-header-foreground-color: #6b6257;
+  --ag-border-color: #ece3d5;
+  --ag-row-border-color: #f2ece1;
+  --ag-odd-row-background-color: #fdfbf7;
+  --ag-row-hover-color: #f8ecea;
+  --ag-selected-row-background-color: #f2e0de;
+  --ag-foreground-color: #1a1a1a;
   --ag-header-column-separator-display: none;
   --ag-wrapper-border-radius: 12px;
-  --ag-input-focus-border-color: #6366f1;
+  --ag-input-focus-border-color: #9B2423;
+  --ag-range-selection-border-color: #9B2423;
+  --ag-checkbox-checked-color: #9B2423;
 }
 .ag-theme-quartz .ag-header-cell-text { font-weight: 700; letter-spacing: 0.2px; }
-.ag-theme-quartz .ag-root-wrapper { border-color: #e6e9f0; }
+.ag-theme-quartz .ag-root-wrapper { border-color: #ece3d5; }
 
 /* ---- thin, modern scrollbars ---- */
 *::-webkit-scrollbar { width: 10px; height: 10px; }
 *::-webkit-scrollbar-track { background: transparent; }
 *::-webkit-scrollbar-thumb {
-  background: #cbd5e1; border-radius: 8px;
+  background: #d3c7b5; border-radius: 8px;
   border: 2px solid transparent; background-clip: content-box;
 }
-*::-webkit-scrollbar-thumb:hover { background: #94a3b8; background-clip: content-box; }
+*::-webkit-scrollbar-thumb:hover { background: #b8a890; background-clip: content-box; }

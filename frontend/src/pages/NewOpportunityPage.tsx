@@ -8,6 +8,7 @@ import { col } from './reportConfigs'
 import { useNewOpportunity } from '../api/hooks'
 import { useReportFilters } from '../state/FiltersContext'
 import { fmtInt } from '../components/formatters'
+import { CHART } from '../theme'
 
 const columns: ColDef[] = [
   col('user_name', 'Salesperson'),
@@ -39,7 +40,7 @@ export default function NewOpportunityPage() {
         type: 'bar',
         name: 'New Opportunities',
         data: byUser.map((u) => u.count),
-        itemStyle: { color: '#0891b2', borderRadius: [4, 4, 0, 0] },
+        itemStyle: { color: CHART.open, borderRadius: [4, 4, 0, 0] },
       },
     ],
   }
@@ -55,7 +56,7 @@ export default function NewOpportunityPage() {
       ) : (
         <>
           <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 2, mb: 2, maxWidth: 420 }}>
-            <KpiCard label="New Opportunities" value={fmtInt(total)} color="#0891b2" />
+            <KpiCard label="New Opportunities" value={fmtInt(total)} color={CHART.open} />
             <KpiCard label="Salespeople" value={fmtInt(byUser.length)} />
           </Box>
           <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>

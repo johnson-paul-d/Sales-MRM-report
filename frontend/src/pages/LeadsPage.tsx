@@ -8,6 +8,7 @@ import { col } from './reportConfigs'
 import { useLeads } from '../api/hooks'
 import { useReportFilters } from '../state/FiltersContext'
 import { fmtInt } from '../components/formatters'
+import { CHART } from '../theme'
 
 const userColumns: ColDef[] = [
   col('user_name', 'Salesperson', 'text', { minWidth: 180 }),
@@ -31,6 +32,7 @@ export default function LeadsPage() {
 
   const sources = (data?.by_source ?? []).filter((s) => s.lead_source)
   const donutOption = {
+    color: CHART.palette,
     tooltip: { trigger: 'item' },
     legend: { type: 'scroll', bottom: 0, textStyle: { fontSize: 11 } },
     series: [
@@ -64,9 +66,9 @@ export default function LeadsPage() {
               maxWidth: 640,
             }}
           >
-            <KpiCard label="Total Leads" value={fmtInt(data?.overall.total_leads)} />
-            <KpiCard label="Converted" value={fmtInt(data?.overall.converted_leads)} color="#15803d" />
-            <KpiCard label="Conversion" value={`${data?.overall.conversion_ratio_pct ?? 0}%`} color="#1e3a8a" />
+            <KpiCard label="Total Leads" value={fmtInt(data?.overall.total_leads)} color={CHART.open} />
+            <KpiCard label="Converted" value={fmtInt(data?.overall.converted_leads)} color={CHART.won} />
+            <KpiCard label="Conversion" value={`${data?.overall.conversion_ratio_pct ?? 0}%`} color="#9B2423" />
           </Box>
 
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
