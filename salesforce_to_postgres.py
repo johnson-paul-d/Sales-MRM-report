@@ -104,8 +104,7 @@ CORE_OBJECTS = [
     "Task",
     "Event",
     "Visit_Plan_Allocation__c",
-    "ActionPlan",
-    "ActionPlanTask"
+    "ActionPlan"
 ]
 
 # ============================================================
@@ -676,11 +675,12 @@ def sync_object(sf, engine, obj_name, fields, incremental=True, sync_mode="CORE"
         return
 
     # ---- Ensure main table and staging exist ----
+    # Run ensure_table_schema on BOTH tables so newly-added Salesforce fields are
+    # applied to the staging table too. The batch temp table is created LIKE staging,
+    # so a column missing from staging fails the insert ("column ... does not exist").
     ensure_table_schema(engine, table_name, usable_fields)
-    # Create staging (if not exists) and TRUNCATE at the beginning only (Step 3)
-    create_staging_sql = generate_create_table_sql(staging_name, usable_fields)
+    ensure_table_schema(engine, staging_name, usable_fields)
     with engine.begin() as conn:
-        conn.execute(text(create_staging_sql))
         conn.execute(text(f'TRUNCATE TABLE "{staging_name}"'))  # clear staging
 
     # ---- Create indexes (Step 4 + extra FK indexes) ----
