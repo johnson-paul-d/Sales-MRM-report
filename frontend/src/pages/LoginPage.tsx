@@ -36,12 +36,18 @@ export default function LoginPage() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%)',
+        background: 'linear-gradient(135deg, #141414 0%, #7d1c1b 100%)',
       }}
     >
       <Paper sx={{ p: 4, width: 380, maxWidth: '90vw' }}>
-        <Typography variant="h5">Sieger</Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+        <Typography variant="h5" sx={{ fontWeight: 800 }}>Sieger</Typography>
+        <Typography
+          variant="caption"
+          sx={{ display: 'block', color: 'primary.main', fontWeight: 700, letterSpacing: 1.2, textTransform: 'uppercase' }}
+        >
+          Partnering Progress
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 3, mt: 0.25 }}>
           Sales Intelligence Platform
         </Typography>
         <form onSubmit={submit}>
