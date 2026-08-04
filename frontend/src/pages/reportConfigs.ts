@@ -1,5 +1,6 @@
 import type { ColDef } from 'ag-grid-community'
 import { fmtINR, fmtInt, fmtDate } from '../components/formatters'
+import { CHART } from '../theme'
 
 type Kind = 'text' | 'int' | 'inr' | 'date'
 
@@ -20,12 +21,26 @@ export function col(field: string, headerName: string, kind: Kind = 'text', extr
   return base
 }
 
+export interface ChartSpec {
+  title: string
+  kind: 'bar' | 'columns' | 'donut' | 'funnel'
+  groupBy: string | ((r: Record<string, any>) => string | number | null | undefined)
+  value?: string          // numeric field to sum; omit to count rows
+  money?: boolean         // format as INR
+  color?: string
+  top?: number
+  chronological?: boolean // sort by group name ascending (time series)
+}
+
 export interface ReportConfig {
   title: string
   subtitle?: string
   path: string
   columns: ColDef[]
+  charts?: ChartSpec[]
 }
+
+const month = (r: Record<string, any>) => String(r.close_date ?? '').slice(0, 7)
 
 export const REPORTS: Record<string, ReportConfig> = {
   'closed-won': {
@@ -45,6 +60,11 @@ export const REPORTS: Record<string, ReportConfig> = {
       col('division', 'Division'),
       col('close_date', 'Close Date', 'date'),
       col('remarks', 'Remarks', 'text', { flex: 2 }),
+    ],
+    charts: [
+      { title: 'Won value by Salesperson', kind: 'bar', groupBy: 'user_name', value: 'total_price', money: true, color: CHART.won, top: 10 },
+      { title: 'By Division', kind: 'donut', groupBy: 'division', value: 'total_price', money: true },
+      { title: 'Monthly won value', kind: 'columns', groupBy: month, value: 'total_price', money: true, color: CHART.won, chronological: true, top: 12 },
     ],
   },
   'closed-lost': {
@@ -81,6 +101,11 @@ export const REPORTS: Record<string, ReportConfig> = {
       col('close_date', 'Close Date', 'date'),
       col('remarks', 'Remarks', 'text', { flex: 2 }),
     ],
+    charts: [
+      { title: 'Dropped value by Salesperson', kind: 'bar', groupBy: 'user_name', value: 'total_price', money: true, color: CHART.dropped, top: 10 },
+      { title: 'By Division', kind: 'donut', groupBy: 'division', value: 'total_price', money: true },
+      { title: 'Monthly dropped value', kind: 'columns', groupBy: month, value: 'total_price', money: true, color: CHART.dropped, chronological: true, top: 12 },
+    ],
   },
   'open-funnel': {
     title: 'Open Funnel',
@@ -97,6 +122,10 @@ export const REPORTS: Record<string, ReportConfig> = {
       col('division', 'Division'),
       col('close_date', 'Close Date', 'date'),
     ],
+    charts: [
+      { title: 'Pipeline by Stage', kind: 'funnel', groupBy: 'stage_name', value: 'quote_total_price', money: true },
+      { title: 'Open value by Salesperson', kind: 'bar', groupBy: 'user_name', value: 'quote_total_price', money: true, color: CHART.open, top: 10 },
+    ],
   },
   'top-enquiries': {
     title: 'Top Enquiries',
@@ -111,6 +140,9 @@ export const REPORTS: Record<string, ReportConfig> = {
       col('quantity', 'Qty', 'int'),
       col('close_date', 'Close Date', 'date'),
       col('remarks', 'Remarks', 'text', { flex: 2 }),
+    ],
+    charts: [
+      { title: 'Top opportunities by quoted value', kind: 'bar', groupBy: 'opportunity_name', value: 'quote_total_price', money: true, color: CHART.open, top: 10 },
     ],
   },
   'no-visits': {
