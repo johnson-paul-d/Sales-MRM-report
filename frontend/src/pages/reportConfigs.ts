@@ -41,6 +41,7 @@ export interface ReportConfig {
 }
 
 const month = (r: Record<string, any>) => String(r.close_date ?? '').slice(0, 7)
+const presentedMonth = (r: Record<string, any>) => String(r.earliest_presented_date ?? '').slice(0, 7)
 
 export const REPORTS: Record<string, ReportConfig> = {
   'closed-won': {
@@ -162,6 +163,9 @@ export const REPORTS: Record<string, ReportConfig> = {
       col('latest_checkin_opp', 'Last Check-in (Opp)', 'date'),
       col('close_date', 'Close Date', 'date'),
     ],
+    charts: [
+      { title: 'Stale value by Salesperson', kind: 'bar', groupBy: 'user_name', value: 'total_price', money: true, color: CHART.dropped, top: 10 },
+    ],
   },
   'new-quotes': {
     title: 'New Quotes Released',
@@ -176,6 +180,10 @@ export const REPORTS: Record<string, ReportConfig> = {
       col('quote_value', 'Quote Value', 'inr'),
       col('opp_stage', 'Stage'),
       col('earliest_presented_date', 'Presented On', 'date'),
+    ],
+    charts: [
+      { title: 'Quote value by Salesperson', kind: 'bar', groupBy: 'user_name', value: 'quote_value', money: true, color: CHART.live, top: 10 },
+      { title: 'Monthly quote value', kind: 'columns', groupBy: presentedMonth, value: 'quote_value', money: true, color: CHART.live, chronological: true, top: 12 },
     ],
   },
   'this-month': {
@@ -197,6 +205,10 @@ export const REPORTS: Record<string, ReportConfig> = {
       col('latest_action_task', 'Latest Task', 'text', { flex: 2 }),
       col('action_activity_date', 'Task Date', 'date'),
     ],
+    charts: [
+      { title: 'This month value by Salesperson', kind: 'bar', groupBy: 'user_name', value: 'total_price', money: true, color: CHART.open, top: 10 },
+      { title: 'By Stage', kind: 'donut', groupBy: 'stage_name', value: 'total_price', money: true },
+    ],
   },
   'last-month': {
     title: 'Last Month',
@@ -216,6 +228,9 @@ export const REPORTS: Record<string, ReportConfig> = {
       col('close_date_historical', 'Close Date (Hist.)', 'date'),
       col('snapshot_date', 'Snapshot Date', 'date'),
     ],
+    charts: [
+      { title: 'Value by Salesperson', kind: 'bar', groupBy: 'user_name', value: 'total_price', money: true, color: CHART.palette[1], top: 10 },
+    ],
   },
   'six-month-plan': {
     title: 'Six Months Booking Plan',
@@ -234,6 +249,10 @@ export const REPORTS: Record<string, ReportConfig> = {
       col('building_construction_stage', 'Construction Stage'),
       col('latest_action_task', 'Latest Task', 'text', { flex: 2 }),
       col('action_activity_date', 'Task Date', 'date'),
+    ],
+    charts: [
+      { title: 'Booking plan by Month', kind: 'columns', groupBy: 'close_month', value: 'total_price', money: true, color: CHART.open, chronological: true },
+      { title: 'Value by Salesperson', kind: 'bar', groupBy: 'user_name', value: 'total_price', money: true, color: CHART.open, top: 10 },
     ],
   },
 }
