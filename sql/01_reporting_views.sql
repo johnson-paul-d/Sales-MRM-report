@@ -88,7 +88,7 @@ SELECT
     o."OwnerId"                              AS owner_id,
     u."Name"                                 AS user_name,          -- Opportunity.UserName
     o."AccountId"                            AS account_id,
-    COALESCE(a."Site", a."Contact_Name__c")  AS account_name,       -- Opportunity.Acc name (stopgap: account.Name not synced)
+    COALESCE(a."Name", a."Site", a."Contact_Name__c")  AS account_name,  -- Opportunity.Acc name
     o."StageName"                            AS stage_name,
     o."IsClosed"                             AS is_closed,
     o."IsWon"                                AS is_won,
@@ -125,10 +125,14 @@ FROM opportunity o
 JOIN "user" u          ON u."Id" = o."OwnerId"
 LEFT JOIN account a    ON a."Id" = o."AccountId"
 LEFT JOIN LATERAL (
-    SELECT t."Subject" AS subject, t."ActivityDate" AS activity_date
-    FROM task t
-    WHERE t."WhatId" = o."Id" AND t."IsDeleted" IS NOT TRUE
-    ORDER BY t."ActivityDate" DESC NULLS LAST
+    -- Latest action-plan task (Labs Action Plans package; plans link to the opp)
+    SELECT apt."LabsActionPlans__Subject__c" AS subject,
+           apt."LabsActionPlans__ActivityDate__c" AS activity_date
+    FROM labsactionplans__aptask apt
+    JOIN labsactionplans__actionplan ap
+      ON ap."Id" = apt."LabsActionPlans__Action_Plan__c" AND ap."IsDeleted" IS NOT TRUE
+    WHERE ap."LabsActionPlans__Opportunity__c" = o."Id" AND apt."IsDeleted" IS NOT TRUE
+    ORDER BY apt."LabsActionPlans__ActivityDate__c" DESC NULLS LAST
     LIMIT 1
 ) lt ON TRUE
 WHERE o."IsDeleted" IS NOT TRUE;
@@ -169,7 +173,7 @@ SELECT
     o."Name"              AS opportunity_name,
     o."OwnerId"           AS owner_id,
     u."Name"              AS user_name,
-    COALESCE(a."Site", a."Contact_Name__c") AS account_name,
+    COALESCE(a."Name", a."Site", a."Contact_Name__c") AS account_name,
     qli."Product_Name__c" AS product_name,
     qli."Quantity"        AS quantity,
     qli."TotalPrice"      AS total_price,
@@ -206,16 +210,20 @@ LEFT JOIN opportunity o ON o."Id" = q."OpportunityId"
 LEFT JOIN "user" u      ON u."Id" = o."OwnerId"
 LEFT JOIN account a     ON a."Id" = o."AccountId"
 LEFT JOIN LATERAL (
-    SELECT t."Subject" AS subject, t."ActivityDate" AS activity_date
-    FROM task t
-    WHERE t."WhatId" = o."Id" AND t."IsDeleted" IS NOT TRUE
-    ORDER BY t."ActivityDate" DESC NULLS LAST
+    -- Latest action-plan task (Labs Action Plans package; plans link to the opp)
+    SELECT apt."LabsActionPlans__Subject__c" AS subject,
+           apt."LabsActionPlans__ActivityDate__c" AS activity_date
+    FROM labsactionplans__aptask apt
+    JOIN labsactionplans__actionplan ap
+      ON ap."Id" = apt."LabsActionPlans__Action_Plan__c" AND ap."IsDeleted" IS NOT TRUE
+    WHERE ap."LabsActionPlans__Opportunity__c" = o."Id" AND apt."IsDeleted" IS NOT TRUE
+    ORDER BY apt."LabsActionPlans__ActivityDate__c" DESC NULLS LAST
     LIMIT 1
 ) lt ON TRUE
 WHERE qli."IsDeleted" IS NOT TRUE;
 
 -- 3d. Lead -------------------------------------------------------------
---     NOTE: lead.City not synced (address compound). Company is present.
+--     lead."City"/"State" are synced via the ETL's KEEP_COMPOUND_FIELDS keep-list.
 CREATE OR REPLACE VIEW vw_leads AS
 SELECT
     l."Id"           AS lead_id,

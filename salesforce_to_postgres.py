@@ -104,7 +104,10 @@ CORE_OBJECTS = [
     "Task",
     "Event",
     "Visit_Plan_Allocation__c",
-    "ActionPlan"
+    # Action plans live in the Labs Action Plans managed package -- the standard
+    # ActionPlan object is empty in this org (verified 2026-08-05: 0 rows vs 3,450/4,003).
+    "LabsActionPlans__ActionPlan__c",
+    "LabsActionPlans__APTask__c",
 ]
 
 # ============================================================
@@ -646,6 +649,17 @@ def log_reconciliation(engine, object_name, sf_count, pg_count):
 # 18. SYNC ONE OBJECT (Steps 3, 4, 7, 8, 9)
 # ============================================================
 
+# Salesforce reports some genuinely useful scalar fields as "compound" components
+# (Person-Account Name; address parts like BillingCity/City), so the generic
+# compound-field skip below drops them. The reporting layer needs a few of these,
+# and each is directly queryable in SOQL, so allow a per-object keep-list to
+# survive that skip. Keyed by destination table name (lowercased, __c stripped).
+KEEP_COMPOUND_FIELDS = {
+    "account": frozenset({"Name", "BillingCity", "BillingState"}),
+    "lead": frozenset({"City", "State"}),
+}
+
+
 def sync_object(sf, engine, obj_name, fields, incremental=True, sync_mode="CORE", batch_size=50000):
     logger.info("Syncing %s...", obj_name)
     start_time = time.time()
@@ -659,6 +673,7 @@ def sync_object(sf, engine, obj_name, fields, incremental=True, sync_mode="CORE"
     staging_name = f"{table_name}_staging"
 
     # ---- Filter usable fields ----
+    keep_compound = KEEP_COMPOUND_FIELDS.get(table_name, frozenset())
     usable_fields = []
     for f in fields:
         sf_type = f["type"]
@@ -666,7 +681,7 @@ def sync_object(sf, engine, obj_name, fields, incremental=True, sync_mode="CORE"
             continue
         if f.get("deprecatedAndHidden", False):
             continue
-        if f.get("compoundFieldName"):
+        if f.get("compoundFieldName") and f["name"] not in keep_compound:
             continue
         usable_fields.append(f)
 

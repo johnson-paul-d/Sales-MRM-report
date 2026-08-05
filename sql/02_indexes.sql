@@ -21,7 +21,16 @@ CREATE INDEX IF NOT EXISTS idx_opp_closedate  ON opportunity ("CloseDate");
 CREATE INDEX IF NOT EXISTS idx_opp_stagename  ON opportunity ("StageName");
 CREATE INDEX IF NOT EXISTS idx_opp_iswon      ON opportunity ("IsWon");
 
+-- Labs Action Plans: the LATERAL "latest action-plan task" lookup
+-- (aptask -> action plan -> opportunity)
+CREATE INDEX IF NOT EXISTS idx_labs_aptask_plan_activity
+    ON labsactionplans__aptask ("LabsActionPlans__Action_Plan__c", "LabsActionPlans__ActivityDate__c" DESC);
+CREATE INDEX IF NOT EXISTS idx_labs_actionplan_opp
+    ON labsactionplans__actionplan ("LabsActionPlans__Opportunity__c");
+
 -- refresh planner stats
 ANALYZE task;
 ANALYZE quotelineitem;
 ANALYZE opportunity;
+ANALYZE labsactionplans__aptask;
+ANALYZE labsactionplans__actionplan;
