@@ -32,7 +32,15 @@ export default function NewOpportunityPage() {
   const total = byUser.reduce((s, u) => s + u.count, 0)
   const chartOption = {
     grid: { left: 8, right: 16, top: 20, bottom: 70, containLabel: true },
-    tooltip: { trigger: 'axis' },
+    tooltip: {
+      trigger: 'axis',
+      // PBI tooltip: Min of building_construction_stage__c
+      formatter: (ps: any[]) => {
+        const u = byUser[ps[0]?.dataIndex]
+        return `<b>${ps[0]?.name}</b><br/>New Opportunities: ${ps[0]?.value}` +
+          (u?.min_construction_stage ? `<br/>Min Construction Stage: ${u.min_construction_stage}` : '')
+      },
+    },
     xAxis: { type: 'category', data: byUser.map((u) => u.user_name), axisLabel: { rotate: 35, fontSize: 10 } },
     yAxis: { type: 'value', minInterval: 1 },
     series: [

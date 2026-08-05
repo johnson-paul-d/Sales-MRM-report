@@ -339,19 +339,35 @@ def new_opportunity(vis: Visibility = Depends(get_visibility),
     """
     rows = rows_as_dicts(db, sql, params)
     counts = Counter(r["user_name"] for r in rows)
-    by_user = [{"user_name": k, "count": v} for k, v in sorted(counts.items(), key=lambda x: -x[1])]
+    # PBI bar chart tooltip: Min(Opportunity.building_construction_stage__c) per user
+    min_stage: dict[str, str] = {}
+    for r in rows:
+        stage = r.get("building_construction_stage")
+        if stage and (r["user_name"] not in min_stage or stage < min_stage[r["user_name"]]):
+            min_stage[r["user_name"]] = stage
+    by_user = [{"user_name": k, "count": v, "min_construction_stage": min_stage.get(k)}
+               for k, v in sorted(counts.items(), key=lambda x: -x[1])]
     return {"rows": rows, "by_user": by_user}
 
 
 # ---------------------------------------------------------------------------
 # LEADS  (overall conversion + by-source + by-status + by-user)
 # ---------------------------------------------------------------------------
+# PBI Leads page template: the donut + salesperson pivot are filtered to the CPS
+# team (app convention: region assigned) and to leads created within the current
+# + previous financial year (the pbix hardcoded its then-window start 2025-04-01;
+# we derive it so it rolls forward each April). The Conversion Ratio card is
+# UNfiltered.
+LEADS_PAGE_DATE_FLOOR = "make_date(sieger_fy_start_year(CURRENT_DATE) - 1, 4, 1)"
+
+
 @router.get("/leads")
 def leads(vis: Visibility = Depends(get_visibility),
           f: CommonFilters = Depends(common_filters),
           db: Session = Depends(get_db)):
     where, params = build_filters(vis, f, owner_col="v.owner_id")
 
+    # Card: global conversion ratio (no page filters in PBI)
     overall = rows_as_dicts(db, f"""
         SELECT COALESCE(SUM(v.total_leads), 0)      AS total_leads,
                COALESCE(SUM(v.converted_leads), 0)  AS converted_leads,
@@ -362,27 +378,32 @@ def leads(vis: Visibility = Depends(get_visibility),
         {where}
     """, params)
 
+    # Donut + pivots: PBI visual filters (team + created >= FY start)
+    scoped = _and(where, f"ur.region_id IS NOT NULL AND v.created_date >= {LEADS_PAGE_DATE_FLOOR}")
+    counts = ("COUNT(*) AS total_leads, "
+              "COUNT(*) FILTER (WHERE UPPER(v.status) = 'QUALIFIED') AS converted_leads")
+
     by_source = rows_as_dicts(db, f"""
-        SELECT v.lead_source, SUM(v.total_leads) AS total_leads, SUM(v.converted_leads) AS converted_leads
-        FROM vw_lead_conversion v
+        SELECT v.lead_source, {counts}
+        FROM vw_leads v
         {REGION_JOIN}
-        {where}
+        {scoped}
         GROUP BY v.lead_source ORDER BY total_leads DESC
     """, params)
 
     by_status = rows_as_dicts(db, f"""
-        SELECT v.status, SUM(v.total_leads) AS total_leads
-        FROM vw_lead_conversion v
+        SELECT v.status, COUNT(*) AS total_leads
+        FROM vw_leads v
         {REGION_JOIN}
-        {where}
+        {scoped}
         GROUP BY v.status ORDER BY total_leads DESC
     """, params)
 
     by_user = rows_as_dicts(db, f"""
-        SELECT v.user_name, SUM(v.total_leads) AS total_leads, SUM(v.converted_leads) AS converted_leads
-        FROM vw_lead_conversion v
+        SELECT v.user_name, {counts}
+        FROM vw_leads v
         {REGION_JOIN}
-        {where}
+        {scoped}
         GROUP BY v.user_name ORDER BY total_leads DESC
     """, params)
 

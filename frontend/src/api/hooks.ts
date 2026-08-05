@@ -41,7 +41,7 @@ export const useLeads = (f?: ReportFilters) =>
 
 export interface NewOppResponse {
   rows: any[]
-  by_user: { user_name: string; count: number }[]
+  by_user: { user_name: string; count: number; min_construction_stage: string | null }[]
 }
 export const useNewOpportunity = (f?: ReportFilters) =>
   useQuery({

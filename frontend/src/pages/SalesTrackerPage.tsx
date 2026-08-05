@@ -6,7 +6,7 @@ import SalesTrackerTree from '../components/SalesTrackerTree'
 import DataTable from '../components/DataTable'
 import KpiCard from '../components/KpiCard'
 import { REPORTS } from './reportConfigs'
-import { useReport } from '../api/hooks'
+import { useReport, useNewOpportunity } from '../api/hooks'
 import { useReportFilters } from '../state/FiltersContext'
 import { fmtINR, fmtInt } from '../components/formatters'
 import { CHART } from '../theme'
@@ -54,6 +54,7 @@ export default function SalesTrackerPage() {
   const { filters } = useReportFilters()
   const { data, isLoading, error } = useReport<SalesTrackerRow>('sales-tracker', filters)
   const eq = useReport('new-quotes', filters)
+  const newOpp = useNewOpportunity(filters)
   const [tab, setTab] = useState(0)
 
   const agg = useMemo(() => aggregate(data?.rows ?? []), [data])
@@ -72,7 +73,6 @@ export default function SalesTrackerPage() {
   )
 
   const topWon = [...agg].sort((a, b) => b.closed_won_value - a.closed_won_value).slice(0, 10)
-  const topOpps = [...agg].sort((a, b) => b.opportunities_created - a.opportunities_created).slice(0, 12)
 
   const wonChart = {
     grid: { left: 8, right: 16, top: 20, bottom: 70, containLabel: true },
@@ -81,12 +81,22 @@ export default function SalesTrackerPage() {
     yAxis: { type: 'value', axisLabel: { formatter: (v: number) => fmtINR(v) } },
     series: [{ type: 'bar', name: 'Closed Won', data: topWon.map((t) => t.closed_won_value), itemStyle: { color: CHART.won, borderRadius: [4, 4, 0, 0] } }],
   }
+  // Same visual as the New Opportunity page (the PBI report repeats it here):
+  // opportunities created last month by salesperson, with Min construction-stage tooltip.
+  const byUser = newOpp.data?.by_user ?? []
   const oppChart = {
     grid: { left: 8, right: 16, top: 20, bottom: 70, containLabel: true },
-    tooltip: { trigger: 'axis' },
-    xAxis: { type: 'category', data: topOpps.map((t) => t.user_name), axisLabel: { rotate: 35, fontSize: 10 } },
+    tooltip: {
+      trigger: 'axis',
+      formatter: (ps: any[]) => {
+        const u = byUser[ps[0]?.dataIndex]
+        return `<b>${ps[0]?.name}</b><br/>New Opportunities: ${ps[0]?.value}` +
+          (u?.min_construction_stage ? `<br/>Min Construction Stage: ${u.min_construction_stage}` : '')
+      },
+    },
+    xAxis: { type: 'category', data: byUser.map((u) => u.user_name), axisLabel: { rotate: 35, fontSize: 10 } },
     yAxis: { type: 'value', minInterval: 1 },
-    series: [{ type: 'bar', name: 'Opportunities Created', data: topOpps.map((t) => t.opportunities_created), itemStyle: { color: CHART.open, borderRadius: [4, 4, 0, 0] } }],
+    series: [{ type: 'bar', name: 'New Opportunities', data: byUser.map((u) => u.count), itemStyle: { color: CHART.open, borderRadius: [4, 4, 0, 0] } }],
   }
 
   return (
@@ -125,8 +135,10 @@ export default function SalesTrackerPage() {
 
           {tab === 1 && (
             <Paper variant="outlined" sx={{ p: 2 }}>
-              <Typography variant="subtitle2" sx={{ mb: 1 }}>New Opportunities Created by Salesperson</Typography>
-              <ReactECharts option={oppChart} style={{ height: 360 }} notMerge />
+              <Typography variant="subtitle2" sx={{ mb: 1 }}>New Opportunities by Salesperson (last month)</Typography>
+              {newOpp.isLoading
+                ? <Box sx={{ display: 'flex', justifyContent: 'center', my: 6 }}><CircularProgress /></Box>
+                : <ReactECharts option={oppChart} style={{ height: 360 }} notMerge />}
             </Paper>
           )}
 

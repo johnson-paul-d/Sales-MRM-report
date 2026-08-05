@@ -74,14 +74,14 @@ export default function LeadsPage() {
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
             <Paper variant="outlined" sx={{ p: 2 }}>
               <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                Leads by Source
-              </Typography>
+                Leads by Source — CPS team, current + previous FY
+</Typography>
               <ReactECharts option={donutOption} style={{ height: 320 }} notMerge />
             </Paper>
             <Paper variant="outlined" sx={{ p: 0 }}>
               <Typography variant="subtitle2" sx={{ p: 2, pb: 1 }}>
-                By Salesperson
-              </Typography>
+                By Salesperson — CPS team, current + previous FY
+</Typography>
               <DataTable rows={data?.by_user ?? []} columns={userColumns} height={320} />
             </Paper>
           </Box>
