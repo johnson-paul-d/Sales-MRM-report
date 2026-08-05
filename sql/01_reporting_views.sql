@@ -292,12 +292,11 @@ LEFT JOIN "user" u ON u."Id" = v."OwnerId"
 WHERE v."IsDeleted" IS NOT TRUE;
 
 -- =====================================================================
--- 4. EARLIEST QUOTES BY MONTH  (faithful rebuild of the Power BI DAX table)
---    One row per SIEGER PARKING opportunity:
---      * earliest_presented_date = MIN(Quote.Created_Date__c)  -- the "newly
---        created quote" date the Sales Tracker drills on
---      * value / owner / product / qty come from the opp's earliest quote by
---        Presented_Date__c (TOPN 1 ASC) -- matches the DAX exactly.
+-- 4. EARLIEST QUOTES BY MONTH  (per user decision 2026-08-05: STRICT created
+--    date -- the pbix DAX picked the quote by Presented_Date; the app picks
+--    the FIRST-CREATED quote per opportunity and dates it by that month).
+--      * earliest_quote_date = MIN(Quote.Created_Date__c)
+--      * value / owner / product / qty come from the first-created quote
 -- =====================================================================
 CREATE OR REPLACE VIEW vw_earliest_quotes_by_month AS
 WITH sp_quotes AS (   -- quotes whose opportunity is in the Sieger Parking division
@@ -316,11 +315,11 @@ per_opp AS (          -- one row per opp: earliest CREATED date (the drill date)
            MAX(opp_division) AS opp_division
     FROM sp_quotes GROUP BY "OpportunityId"
 ),
-earliest_presented AS ( -- the quote with the earliest Presented_Date__c per opp
+first_created AS (    -- the FIRST quote per opp, strictly by Created_Date__c
     SELECT DISTINCT ON ("OpportunityId")
            "OpportunityId", "Id" AS quote_id, "OwnerId", "TotalPrice"
     FROM sp_quotes
-    ORDER BY "OpportunityId", "Presented_Date__c" ASC NULLS LAST, "Id"
+    ORDER BY "OpportunityId", "Created_Date__c" ASC NULLS LAST, "Id"
 )
 SELECT
     po."OpportunityId"           AS opportunity_id,
@@ -332,10 +331,10 @@ SELECT
     ep."TotalPrice"              AS quote_value,
     ql.product_name,
     ql.quantity,
-    po.earliest_created          AS earliest_presented_date,
+    po.earliest_created          AS earliest_quote_date,
     sieger_fy_label(po.earliest_created) AS fy_label
 FROM per_opp po
-JOIN earliest_presented ep ON ep."OpportunityId" = po."OpportunityId"
+JOIN first_created ep ON ep."OpportunityId" = po."OpportunityId"
 LEFT JOIN "user" u ON u."Id" = ep."OwnerId"
 LEFT JOIN LATERAL (
     SELECT MAX(qli."Product_Name__c") AS product_name, SUM(qli."Quantity") AS quantity
@@ -349,8 +348,9 @@ LEFT JOIN LATERAL (
 --    Opportunity.Division__c = 'Sieger Parking', and is dated by its own field.
 --      visits                count(VPA) excl. non-selling purposes, by Check_In_Time__c
 --      opportunities_created count(opp) by CreatedDate
+--      quotes_created        count(quote) by Created_Date__c
 --      open_quotes_value     SUM(QLI.TotalPrice) synced+open on live Sieger Parking opps, by Quote.Created_Date__c
---      live_quote_value      SUM(earliest-quote value) for opps with a live synced quote, by earliest date
+--      new_quotes_value      SUM(first-created-quote value per opp), by that quote's created month
 --      closed_won_value      SUM(Opp Amount) Closed Won + Sieger Parking + ACCEPTED synced quote, by CloseDate
 --      closed_lost_value     SUM(Opp Amount) Closed Lost + synced quote, by CloseDate
 --      dropped_value         SUM(Opp Amount) Dropped + synced quote, by CloseDate
@@ -389,16 +389,21 @@ WITH facts AS (
       AND q."Created_Date__c" IS NOT NULL
 
     UNION ALL
-    -- Live Quote Value: earliest-quote value for opps that still have a live synced quote
-    SELECT e.owner_id, date_trunc('month', e.earliest_presented_date)::date, e.division,
-           'live_quote_value', COALESCE(e.quote_value, 0)
+    -- New Quotes Value: the FIRST-created quote's value per opportunity, in the
+    -- month that quote was created (user decision 2026-08-05: replaces the pbix
+    -- "Live Quote Value" -- no live/synced status condition).
+    SELECT e.owner_id, date_trunc('month', e.earliest_quote_date)::date, e.division,
+           'new_quotes_value', COALESCE(e.quote_value, 0)
     FROM vw_earliest_quotes_by_month e
-    WHERE e.earliest_presented_date IS NOT NULL
-      AND EXISTS (SELECT 1 FROM quote q2
-                    WHERE q2."OpportunityId" = e.opportunity_id
-                      AND q2."IsDeleted" IS NOT TRUE
-                      AND q2."Sync_Quote__c" IS TRUE
-                      AND UPPER(q2."Status") NOT IN ('REJECTED','ACCEPTED'))
+    WHERE e.earliest_quote_date IS NOT NULL
+
+    UNION ALL
+    -- Quotes Created: count of quotes by their created month (like opps created)
+    SELECT q."OwnerId", date_trunc('month', q."Created_Date__c")::date, o."Division__c",
+           'quotes_created', 1
+    FROM quote q
+    LEFT JOIN opportunity o ON o."Id" = q."OpportunityId"
+    WHERE q."IsDeleted" IS NOT TRUE AND q."Created_Date__c" IS NOT NULL
 
     UNION ALL
     -- Closed Won Value: Sieger Parking won opps with an ACCEPTED synced quote
@@ -437,8 +442,9 @@ SELECT
     to_char(f.ym, 'YYYY-MM')     AS year_month,
     SUM(f.v) FILTER (WHERE f.m = 'visits')                AS visits,
     SUM(f.v) FILTER (WHERE f.m = 'opportunities_created') AS opportunities_created,
+    SUM(f.v) FILTER (WHERE f.m = 'quotes_created')        AS quotes_created,
     SUM(f.v) FILTER (WHERE f.m = 'open_quotes_value')     AS open_quotes_value,
-    SUM(f.v) FILTER (WHERE f.m = 'live_quote_value')      AS live_quote_value,
+    SUM(f.v) FILTER (WHERE f.m = 'new_quotes_value')      AS new_quotes_value,
     SUM(f.v) FILTER (WHERE f.m = 'closed_won_value')      AS closed_won_value,
     SUM(f.v) FILTER (WHERE f.m = 'closed_lost_value')     AS closed_lost_value,
     SUM(f.v) FILTER (WHERE f.m = 'dropped_value')         AS dropped_value

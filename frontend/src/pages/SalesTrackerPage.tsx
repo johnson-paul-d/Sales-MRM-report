@@ -18,8 +18,9 @@ interface Agg {
   region_name: string | null
   visits: number
   opportunities_created: number
+  quotes_created: number
   open_quotes_value: number
-  live_quote_value: number
+  new_quotes_value: number
   closed_won_value: number
   closed_lost_value: number
   dropped_value: number
@@ -33,15 +34,16 @@ function aggregate(rows: SalesTrackerRow[]): Agg[] {
     if (!a) {
       a = {
         owner_id: r.owner_id, user_name: r.user_name, region_name: r.region_name,
-        visits: 0, opportunities_created: 0, open_quotes_value: 0, live_quote_value: 0,
-        closed_won_value: 0, closed_lost_value: 0, dropped_value: 0,
+        visits: 0, opportunities_created: 0, quotes_created: 0, open_quotes_value: 0,
+        new_quotes_value: 0, closed_won_value: 0, closed_lost_value: 0, dropped_value: 0,
       }
       m.set(r.owner_id, a)
     }
     a.visits += N(r.visits)
     a.opportunities_created += N(r.opportunities_created)
+    a.quotes_created += N(r.quotes_created)
     a.open_quotes_value += N(r.open_quotes_value)
-    a.live_quote_value += N(r.live_quote_value)
+    a.new_quotes_value += N(r.new_quotes_value)
     a.closed_won_value += N(r.closed_won_value)
     a.closed_lost_value += N(r.closed_lost_value)
     a.dropped_value += N(r.dropped_value)
@@ -62,12 +64,12 @@ export default function SalesTrackerPage() {
     () =>
       agg.reduce(
         (t, a) => {
-          t.visits += a.visits; t.opps += a.opportunities_created
-          t.open += a.open_quotes_value; t.live += a.live_quote_value
+          t.visits += a.visits; t.opps += a.opportunities_created; t.quotes += a.quotes_created
+          t.open += a.open_quotes_value; t.newq += a.new_quotes_value
           t.won += a.closed_won_value; t.lost += a.closed_lost_value; t.dropped += a.dropped_value
           return t
         },
-        { visits: 0, opps: 0, open: 0, live: 0, won: 0, lost: 0, dropped: 0 },
+        { visits: 0, opps: 0, quotes: 0, open: 0, newq: 0, won: 0, lost: 0, dropped: 0 },
       ),
     [agg],
   )
@@ -107,11 +109,12 @@ export default function SalesTrackerPage() {
         <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}><CircularProgress /></Box>
       ) : (
         <>
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2,1fr)', sm: 'repeat(3,1fr)', lg: 'repeat(7,1fr)' }, gap: 2, mb: 2 }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2,1fr)', sm: 'repeat(4,1fr)', lg: 'repeat(8,1fr)' }, gap: 2, mb: 2 }}>
             <KpiCard label="Visits" value={fmtInt(totals.visits)} color={CHART.neutral} />
             <KpiCard label="Opps Created" value={fmtInt(totals.opps)} color={CHART.open} />
+            <KpiCard label="Quotes Created" value={fmtInt(totals.quotes)} color={CHART.live} />
             <KpiCard label="Open Quotes" value={fmtINR(totals.open)} color={CHART.live} />
-            <KpiCard label="Live Quotes" value={fmtINR(totals.live)} color="#C99A2E" />
+            <KpiCard label="New Quotes" value={fmtINR(totals.newq)} color="#C99A2E" />
             <KpiCard label="Closed Won" value={fmtINR(totals.won)} color={CHART.won} />
             <KpiCard label="Closed Lost" value={fmtINR(totals.lost)} color={CHART.lost} />
             <KpiCard label="Dropped" value={fmtINR(totals.dropped)} color={CHART.dropped} />

@@ -51,8 +51,9 @@ export interface SalesTrackerRow {
   fq_label: string
   visits: number | null
   opportunities_created: number | null
+  quotes_created: number | null
   open_quotes_value: number | null
-  live_quote_value: number | null
+  new_quotes_value: number | null
   closed_won_value: number | null
   closed_lost_value: number | null
   dropped_value: number | null

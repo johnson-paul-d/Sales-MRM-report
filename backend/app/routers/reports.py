@@ -63,7 +63,8 @@ def sales_tracker(vis: Visibility = Depends(get_visibility),
                v.year_month, MAX(v.month_start) AS month_start,
                MAX(v.fy_label) AS fy_label, MAX(v.fq_label) AS fq_label,
                SUM(v.visits) AS visits, SUM(v.opportunities_created) AS opportunities_created,
-               SUM(v.open_quotes_value) AS open_quotes_value, SUM(v.live_quote_value) AS live_quote_value,
+               SUM(v.quotes_created) AS quotes_created,
+               SUM(v.open_quotes_value) AS open_quotes_value, SUM(v.new_quotes_value) AS new_quotes_value,
                SUM(v.closed_won_value) AS closed_won_value, SUM(v.closed_lost_value) AS closed_lost_value,
                SUM(v.dropped_value) AS dropped_value
         FROM vw_sales_tracker v
@@ -216,16 +217,16 @@ def new_quotes(vis: Visibility = Depends(get_visibility),
                f: CommonFilters = Depends(common_filters),
                db: Session = Depends(get_db)):
     where, params = build_filters(vis, f, owner_col="v.owner_id", division_col="v.division",
-                                  date_col="v.earliest_presented_date", fy_col="v.fy_label",
-                                  month_col="v.earliest_presented_date")
+                                  date_col="v.earliest_quote_date", fy_col="v.fy_label",
+                                  month_col="v.earliest_quote_date")
     sql = f"""
         SELECT v.owner_id, v.user_name, ur.region_id, r.name AS region_name,
                v.opportunity_name, v.product_name, v.quantity, v.quote_value,
-               v.opp_stage, v.earliest_presented_date
+               v.opp_stage, v.earliest_quote_date
         FROM vw_earliest_quotes_by_month v
         {REGION_JOIN}
         {where}
-        ORDER BY v.earliest_presented_date DESC NULLS LAST, v.user_name
+        ORDER BY v.earliest_quote_date DESC NULLS LAST, v.user_name
     """
     return {"rows": rows_as_dicts(db, sql, params)}
 

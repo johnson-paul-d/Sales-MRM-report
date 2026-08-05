@@ -4,16 +4,21 @@ import { CHART } from '../theme'
 
 type Kind = 'text' | 'int' | 'inr' | 'date'
 
+// numeric fields where a grand total makes no sense
+const NO_TOTAL = new Set(['probability', 'days_since_last_activity'])
+
 export function col(field: string, headerName: string, kind: Kind = 'text', extra: Partial<ColDef> = {}): ColDef {
   const base: ColDef = { field, headerName, ...extra }
   if (kind === 'inr') {
     base.valueFormatter = (p) => fmtINR(p.value)
     base.type = 'numericColumn'
     base.filter = 'agNumberColumnFilter'
+    if (!NO_TOTAL.has(field)) base.context = { ...base.context, sum: true }
   } else if (kind === 'int') {
     base.valueFormatter = (p) => fmtInt(p.value)
     base.type = 'numericColumn'
     base.filter = 'agNumberColumnFilter'
+    if (!NO_TOTAL.has(field)) base.context = { ...base.context, sum: true }
   } else if (kind === 'date') {
     base.valueFormatter = (p) => fmtDate(p.value)
     base.filter = 'agDateColumnFilter'
@@ -38,10 +43,11 @@ export interface ReportConfig {
   path: string
   columns: ColDef[]
   charts?: ChartSpec[]
+  stageFilter?: boolean   // show a Stage multi-select that filters the page client-side
 }
 
 const month = (r: Record<string, any>) => String(r.close_date ?? '').slice(0, 7)
-const presentedMonth = (r: Record<string, any>) => String(r.earliest_presented_date ?? '').slice(0, 7)
+const quoteMonth = (r: Record<string, any>) => String(r.earliest_quote_date ?? '').slice(0, 7)
 
 export const REPORTS: Record<string, ReportConfig> = {
   'closed-won': {
@@ -150,6 +156,7 @@ export const REPORTS: Record<string, ReportConfig> = {
     title: 'No Visit Opportunities',
     subtitle: 'Open opportunities with stale or no recent activity',
     path: 'no-visits',
+    stageFilter: true,
     columns: [
       // Same columns + order as the PBI No Visits table
       col('user_name', 'Salesperson'),
@@ -181,11 +188,11 @@ export const REPORTS: Record<string, ReportConfig> = {
       col('quantity', 'Qty', 'int'),
       col('quote_value', 'Quote Value', 'inr'),
       col('opp_stage', 'Stage'),
-      col('earliest_presented_date', 'Presented On', 'date'),
+      col('earliest_quote_date', 'Quote Created', 'date'),
     ],
     charts: [
       { title: 'Quote value by Salesperson', kind: 'bar', groupBy: 'user_name', value: 'quote_value', money: true, color: CHART.live, top: 10 },
-      { title: 'Monthly quote value', kind: 'columns', groupBy: presentedMonth, value: 'quote_value', money: true, color: CHART.live, chronological: true, top: 12 },
+      { title: 'Monthly quote value', kind: 'columns', groupBy: quoteMonth, value: 'quote_value', money: true, color: CHART.live, chronological: true, top: 12 },
     ],
   },
   'this-month': {

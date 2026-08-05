@@ -15,7 +15,7 @@ interface TrackerRow {
   visits?: number
   opportunities_created?: number
   open_quotes_value?: number
-  live_quote_value?: number
+  new_quotes_value?: number
   closed_won_value?: number
   closed_lost_value?: number
   dropped_value?: number
@@ -36,7 +36,7 @@ export default function OverviewPage() {
     const t = { visits: 0, opps: 0, open: 0, live: 0, won: 0, lost: 0, dropped: 0 }
     for (const r of rows) {
       t.visits += N(r.visits); t.opps += N(r.opportunities_created)
-      t.open += N(r.open_quotes_value); t.live += N(r.live_quote_value)
+      t.open += N(r.open_quotes_value); t.live += N(r.new_quotes_value)
       t.won += N(r.closed_won_value); t.lost += N(r.closed_lost_value); t.dropped += N(r.dropped_value)
     }
     return t
@@ -90,7 +90,7 @@ export default function OverviewPage() {
   const pipelineChart = {
     grid: { left: 8, right: 16, top: 10, bottom: 24, containLabel: true },
     tooltip: { trigger: 'axis', valueFormatter: inr },
-    xAxis: { type: 'category', data: ['Open Quotes', 'Live Quotes', 'Closed Won'] },
+    xAxis: { type: 'category', data: ['Open Quotes', 'New Quotes', 'Closed Won'] },
     yAxis: { type: 'value', axisLabel: { formatter: inr } },
     series: [{
       type: 'bar', barMaxWidth: 56,
@@ -128,7 +128,7 @@ export default function OverviewPage() {
             <KpiCard label="Closed Lost" value={fmtINR(totals.lost)} color={CHART.lost} />
             <KpiCard label="Dropped" value={fmtINR(totals.dropped)} color={CHART.dropped} />
             <KpiCard label="Open Pipeline" value={fmtINR(totals.open)} color={CHART.open} />
-            <KpiCard label="Live Quotes" value={fmtINR(totals.live)} color={CHART.live} />
+            <KpiCard label="New Quotes" value={fmtINR(totals.live)} color={CHART.live} />
             <KpiCard label="Conversion" value={`${leads.data?.overall.conversion_ratio_pct ?? 0}%`} sub={`${fmtInt(leads.data?.overall.total_leads)} leads`} />
             <KpiCard label="Visits" value={fmtInt(totals.visits)} color={CHART.neutral} />
             <KpiCard label="Opps Created" value={fmtInt(totals.opps)} color={CHART.open} />

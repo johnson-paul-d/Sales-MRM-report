@@ -10,22 +10,24 @@ import type { SalesTrackerRow } from '../api/types'
 interface M {
   visits: number
   opportunities_created: number
+  quotes_created: number
   open_quotes_value: number
-  live_quote_value: number
+  new_quotes_value: number
   closed_won_value: number
   closed_lost_value: number
   dropped_value: number
 }
 const N = (x: any) => Number(x || 0)
 const zero = (): M => ({
-  visits: 0, opportunities_created: 0, open_quotes_value: 0, live_quote_value: 0,
-  closed_won_value: 0, closed_lost_value: 0, dropped_value: 0,
+  visits: 0, opportunities_created: 0, quotes_created: 0, open_quotes_value: 0,
+  new_quotes_value: 0, closed_won_value: 0, closed_lost_value: 0, dropped_value: 0,
 })
 function add(a: M, r: SalesTrackerRow): M {
   a.visits += N(r.visits)
   a.opportunities_created += N(r.opportunities_created)
+  a.quotes_created += N(r.quotes_created)
   a.open_quotes_value += N(r.open_quotes_value)
-  a.live_quote_value += N(r.live_quote_value)
+  a.new_quotes_value += N(r.new_quotes_value)
   a.closed_won_value += N(r.closed_won_value)
   a.closed_lost_value += N(r.closed_lost_value)
   a.dropped_value += N(r.dropped_value)
@@ -67,15 +69,16 @@ function buildTree(rows: SalesTrackerRow[]): UserNode[] {
   return list
 }
 
-const HEADERS = ['Visits', 'Opps', 'Open Quotes', 'Live Quotes', 'Closed Won', 'Closed Lost', 'Dropped']
+const HEADERS = ['Visits', 'Opps', 'Quotes', 'Open Quotes', 'New Quotes', 'Closed Won', 'Closed Lost', 'Dropped']
 
 function MeasureCells({ m }: { m: M }) {
   return (
     <>
       <TableCell align="right">{fmtInt(m.visits)}</TableCell>
       <TableCell align="right">{fmtInt(m.opportunities_created)}</TableCell>
+      <TableCell align="right">{fmtInt(m.quotes_created)}</TableCell>
       <TableCell align="right">{fmtINR(m.open_quotes_value)}</TableCell>
-      <TableCell align="right">{fmtINR(m.live_quote_value)}</TableCell>
+      <TableCell align="right">{fmtINR(m.new_quotes_value)}</TableCell>
       <TableCell align="right" sx={{ color: 'success.main' }}>{fmtINR(m.closed_won_value)}</TableCell>
       <TableCell align="right" sx={{ color: 'error.main' }}>{fmtINR(m.closed_lost_value)}</TableCell>
       <TableCell align="right" sx={{ color: 'warning.main' }}>{fmtINR(m.dropped_value)}</TableCell>
