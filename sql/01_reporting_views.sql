@@ -105,13 +105,14 @@ SELECT
     o."building_construction_stage__c"       AS building_construction_stage,
     o."Project_stage__c"                     AS project_stage,
     o."Remarks__c"                           AS remarks,
-    (SELECT MAX(vp."CheckInDate__c") FROM visit_plan_allocation vp
-       WHERE vp."Opportunity__c" = o."Id" AND vp."IsDeleted" IS NOT TRUE) AS latest_checkin_opp,  -- DAX: LatestCheckin - Opp
-    (SELECT MAX(vp."CheckInDate__c") FROM visit_plan_allocation vp
-       WHERE vp."Account__c" = o."AccountId" AND vp."IsDeleted" IS NOT TRUE) AS latest_checkin_acc, -- DAX: LatestCheckin - Acc
+    ck.checkin_opp                           AS latest_checkin_opp,  -- DAX: LatestCheckin - Opp
+    ck.checkin_acc                           AS latest_checkin_acc,  -- DAX: LatestCheckin - Acc
     o."LastActivityDate"                     AS last_activity_date,
-    CASE WHEN o."LastActivityDate" IS NULL THEN NULL
-         ELSE (CURRENT_DATE - o."LastActivityDate"::date) END AS days_since_last_activity,
+    -- DAX DaysSinceLastActivity = DATEDIFF(MAX(checkin opp, checkin acc), TODAY()).
+    -- A blank date behaves as the 1899-12-30 epoch in DAX, so never-visited
+    -- opportunities yield a huge day count and pass the "> 30" No Visits filter.
+    (CURRENT_DATE - COALESCE(GREATEST(ck.checkin_opp, ck.checkin_acc)::date, DATE '1899-12-30'))
+                                             AS days_since_last_activity,
     lt.subject                               AS latest_action_task,     -- Opportunity.Latest Action task
     lt.activity_date                         AS action_activity_date,   -- Opportunity.Action activity date
     EXISTS (SELECT 1 FROM quote q WHERE q."OpportunityId" = o."Id"
@@ -125,14 +126,30 @@ FROM opportunity o
 JOIN "user" u          ON u."Id" = o."OwnerId"
 LEFT JOIN account a    ON a."Id" = o."AccountId"
 LEFT JOIN LATERAL (
-    -- Latest action-plan task (Labs Action Plans package; plans link to the opp)
-    SELECT apt."LabsActionPlans__Subject__c" AS subject,
-           apt."LabsActionPlans__ActivityDate__c" AS activity_date
-    FROM labsactionplans__aptask apt
-    JOIN labsactionplans__actionplan ap
-      ON ap."Id" = apt."LabsActionPlans__Action_Plan__c" AND ap."IsDeleted" IS NOT TRUE
-    WHERE ap."LabsActionPlans__Opportunity__c" = o."Id" AND apt."IsDeleted" IS NOT TRUE
-    ORDER BY apt."LabsActionPlans__ActivityDate__c" DESC NULLS LAST
+    -- LatestCheckin - Opp / Acc (exact DAX: MAX VPA CheckInDate per opp / account)
+    SELECT MAX(vp."CheckInDate__c") FILTER (WHERE vp."Opportunity__c" = o."Id")    AS checkin_opp,
+           MAX(vp."CheckInDate__c") FILTER (WHERE vp."Account__c" = o."AccountId") AS checkin_acc
+    FROM visit_plan_allocation vp
+    WHERE (vp."Opportunity__c" = o."Id" OR vp."Account__c" = o."AccountId")
+      AND vp."IsDeleted" IS NOT TRUE
+) ck ON TRUE
+LEFT JOIN LATERAL (
+    -- Exact DAX: newest action PLAN by CreatedDate -> its newest TASK by
+    -- CreatedDate -> that task's Next_Action__c; activity date = MAX(ActivityDate)
+    -- among the plan's tasks sharing that Next_Action__c.
+    SELECT t."Next_Action__c" AS subject,
+           (SELECT MAX(t3."LabsActionPlans__ActivityDate__c")
+              FROM labsactionplans__aptask t3
+             WHERE t3."LabsActionPlans__Action_Plan__c" = t."LabsActionPlans__Action_Plan__c"
+               AND t3."Next_Action__c" = t."Next_Action__c"
+               AND t3."IsDeleted" IS NOT TRUE) AS activity_date
+    FROM (SELECT ap."Id"
+            FROM labsactionplans__actionplan ap
+           WHERE ap."LabsActionPlans__Opportunity__c" = o."Id" AND ap."IsDeleted" IS NOT TRUE
+           ORDER BY ap."CreatedDate" DESC LIMIT 1) p
+    JOIN labsactionplans__aptask t
+      ON t."LabsActionPlans__Action_Plan__c" = p."Id" AND t."IsDeleted" IS NOT TRUE
+    ORDER BY t."CreatedDate" DESC
     LIMIT 1
 ) lt ON TRUE
 WHERE o."IsDeleted" IS NOT TRUE;
@@ -174,6 +191,7 @@ SELECT
     o."OwnerId"           AS owner_id,
     u."Name"              AS user_name,
     COALESCE(a."Name", a."Site", a."Contact_Name__c") AS account_name,
+    a."BillingCity"       AS billing_city,
     qli."Product_Name__c" AS product_name,
     qli."Quantity"        AS quantity,
     qli."TotalPrice"      AS total_price,
@@ -189,13 +207,12 @@ SELECT
     o."CloseDate"         AS close_date,
     sieger_fy_label(o."CloseDate") AS close_fy_label,
     o."Probability"       AS probability,          -- report's "Quote Line Item.Probability" = Opportunity.Probability
-    (SELECT MAX(vp."CheckInDate__c") FROM visit_plan_allocation vp
-       WHERE vp."Opportunity__c" = o."Id" AND vp."IsDeleted" IS NOT TRUE) AS latest_checkin_opp,
-    (SELECT MAX(vp."CheckInDate__c") FROM visit_plan_allocation vp
-       WHERE vp."Account__c" = o."AccountId" AND vp."IsDeleted" IS NOT TRUE) AS latest_checkin_acc,
+    ck.checkin_opp        AS latest_checkin_opp,
+    ck.checkin_acc        AS latest_checkin_acc,
     o."LastActivityDate"  AS last_activity_date,
-    CASE WHEN o."LastActivityDate" IS NULL THEN NULL
-         ELSE (CURRENT_DATE - o."LastActivityDate"::date) END AS days_since_last_activity,
+    -- DAX DaysSinceLastActivity: days since latest check-in; blank -> 1899 epoch
+    (CURRENT_DATE - COALESCE(GREATEST(ck.checkin_opp, ck.checkin_acc)::date, DATE '1899-12-30'))
+                          AS days_since_last_activity,
     o."Project_stage__c"  AS project_stage,
     o."building_construction_stage__c" AS building_construction_stage,
     lt.subject            AS latest_action_task,
@@ -210,14 +227,28 @@ LEFT JOIN opportunity o ON o."Id" = q."OpportunityId"
 LEFT JOIN "user" u      ON u."Id" = o."OwnerId"
 LEFT JOIN account a     ON a."Id" = o."AccountId"
 LEFT JOIN LATERAL (
-    -- Latest action-plan task (Labs Action Plans package; plans link to the opp)
-    SELECT apt."LabsActionPlans__Subject__c" AS subject,
-           apt."LabsActionPlans__ActivityDate__c" AS activity_date
-    FROM labsactionplans__aptask apt
-    JOIN labsactionplans__actionplan ap
-      ON ap."Id" = apt."LabsActionPlans__Action_Plan__c" AND ap."IsDeleted" IS NOT TRUE
-    WHERE ap."LabsActionPlans__Opportunity__c" = o."Id" AND apt."IsDeleted" IS NOT TRUE
-    ORDER BY apt."LabsActionPlans__ActivityDate__c" DESC NULLS LAST
+    -- LatestCheckin - Opp / Acc (exact DAX)
+    SELECT MAX(vp."CheckInDate__c") FILTER (WHERE vp."Opportunity__c" = o."Id")    AS checkin_opp,
+           MAX(vp."CheckInDate__c") FILTER (WHERE vp."Account__c" = o."AccountId") AS checkin_acc
+    FROM visit_plan_allocation vp
+    WHERE (vp."Opportunity__c" = o."Id" OR vp."Account__c" = o."AccountId")
+      AND vp."IsDeleted" IS NOT TRUE
+) ck ON TRUE
+LEFT JOIN LATERAL (
+    -- Exact DAX: newest plan -> newest task -> Next_Action__c + its MAX ActivityDate
+    SELECT t."Next_Action__c" AS subject,
+           (SELECT MAX(t3."LabsActionPlans__ActivityDate__c")
+              FROM labsactionplans__aptask t3
+             WHERE t3."LabsActionPlans__Action_Plan__c" = t."LabsActionPlans__Action_Plan__c"
+               AND t3."Next_Action__c" = t."Next_Action__c"
+               AND t3."IsDeleted" IS NOT TRUE) AS activity_date
+    FROM (SELECT ap."Id"
+            FROM labsactionplans__actionplan ap
+           WHERE ap."LabsActionPlans__Opportunity__c" = o."Id" AND ap."IsDeleted" IS NOT TRUE
+           ORDER BY ap."CreatedDate" DESC LIMIT 1) p
+    JOIN labsactionplans__aptask t
+      ON t."LabsActionPlans__Action_Plan__c" = p."Id" AND t."IsDeleted" IS NOT TRUE
+    ORDER BY t."CreatedDate" DESC
     LIMIT 1
 ) lt ON TRUE
 WHERE qli."IsDeleted" IS NOT TRUE;
@@ -229,6 +260,7 @@ SELECT
     l."Id"           AS lead_id,
     l."Name"         AS lead_name,
     l."Company"      AS company,
+    l."City"         AS city,
     l."Email"        AS email,
     l."MobilePhone"  AS mobile_phone,
     l."LeadSource"   AS lead_source,

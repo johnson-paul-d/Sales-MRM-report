@@ -29,9 +29,11 @@ def _and(where: str, extra: str) -> str:
 
 
 def _product_table(where: str, predicate: str, max_cols: list[str],
-                   order: str = "MAX(v.close_date) DESC NULLS LAST, MAX(v.user_name)") -> str:
+                   order: str = "MAX(v.close_date) DESC NULLS LAST, MAX(v.user_name)",
+                   having: str = "") -> str:
     """Aggregated product table: one row per opportunity + product, Qty/Value summed."""
     extra = ",\n               ".join(max_cols)
+    having_sql = f"HAVING {having}" if having else ""
     return f"""
         SELECT v.owner_id, MAX(v.user_name) AS user_name, ur.region_id, MAX(r.name) AS region_name,
                v.opportunity_name, v.product_name,
@@ -41,6 +43,7 @@ def _product_table(where: str, predicate: str, max_cols: list[str],
         {REGION_JOIN}
         {_and(where, predicate)}
         GROUP BY v.owner_id, ur.region_id, v.opportunity_id, v.opportunity_name, v.product_name
+        {having_sql}
         ORDER BY {order}
     """
 
@@ -161,13 +164,18 @@ def no_visits(vis: Visibility = Depends(get_visibility),
     where, params = build_filters(vis, f, owner_col="v.owner_id", division_col="v.division",
                                   date_col="v.close_date", fy_col="v.close_fy_label", month_col="v.close_date")
     params["_min_days"] = min_days
-    predicate = ("v.is_open IS TRUE AND v.sync_quote IS TRUE AND v.stage_name <> 'Hold' AND "
-                 "(v.days_since_last_activity >= :_min_days OR v.days_since_last_activity IS NULL)")
+    # PBI No Visits filters: synced, stage not closed (Hold INCLUDED), strict
+    # DaysSinceLastActivity > 30, and Sum(TotalPrice) per row > 1 Cr.
+    predicate = ("v.sync_quote IS TRUE "
+                 "AND v.stage_name NOT IN ('Closed Lost', 'Closed Won', 'Dropped') "
+                 "AND v.days_since_last_activity > :_min_days")
     sql = _product_table(where, predicate,
-        ["MAX(v.account_name) AS account_name", "MAX(v.stage_name) AS stage_name",
+        ["MAX(v.account_name) AS account_name", "MAX(v.billing_city) AS billing_city",
+         "MAX(v.stage_name) AS stage_name",
          "MAX(v.latest_checkin_opp) AS latest_checkin_opp", "MAX(v.latest_checkin_acc) AS latest_checkin_acc",
          "MAX(v.close_date) AS close_date", "MAX(v.days_since_last_activity) AS days_since_last_activity"],
-        order="MAX(v.days_since_last_activity) DESC NULLS FIRST, MAX(v.user_name)")
+        order="MAX(v.days_since_last_activity) DESC NULLS FIRST, MAX(v.user_name)",
+        having="SUM(v.total_price) > 10000000")
     return {"rows": rows_as_dicts(db, sql, params)}
 
 
@@ -292,11 +300,14 @@ def six_month_plan(vis: Visibility = Depends(get_visibility),
                    db: Session = Depends(get_db)):
     where, params = build_filters(vis, f, owner_col="v.owner_id", division_col="v.division",
                                   month_col="v.close_date")
+    # PBI window: NEXT month through +6 months (current month excluded);
+    # stage filter keeps Hold (only the three closed stages are excluded).
     date_pred = ("" if f.month else
-                 " AND v.close_date >= date_trunc('month', CURRENT_DATE)"
-                 " AND v.close_date < date_trunc('month', CURRENT_DATE) + interval '6 months'")
+                 " AND v.close_date >= date_trunc('month', CURRENT_DATE) + interval '1 month'"
+                 " AND v.close_date < date_trunc('month', CURRENT_DATE) + interval '7 months'")
     pred = ("v.sync_quote IS TRUE AND UPPER(v.quote_status) NOT IN ('REJECTED','ACCEPTED') "
-            "AND v.is_open IS TRUE AND ur.region_id IS NOT NULL" + date_pred)
+            "AND v.stage_name NOT IN ('Closed Lost', 'Closed Won', 'Dropped') "
+            "AND ur.region_id IS NOT NULL" + date_pred)
     sql = _product_table(where, pred,
         ["to_char(MAX(v.close_date), 'YYYY-MM') AS close_month", "MAX(v.close_date) AS close_date",
          "MAX(v.stage_name) AS stage_name", "MAX(v.probability) AS probability",
@@ -407,5 +418,25 @@ def leads(vis: Visibility = Depends(get_visibility),
         GROUP BY v.user_name ORDER BY total_leads DESC
     """, params)
 
+    # PBI pivot: salesperson rows x lead-Status columns (incl. Dropped/Dormant)
+    by_user_status = rows_as_dicts(db, f"""
+        SELECT v.user_name, v.status, COUNT(*) AS total_leads
+        FROM vw_leads v
+        {REGION_JOIN}
+        {scoped}
+        GROUP BY v.user_name, v.status
+    """, params)
+
+    # Lead detail table (PBI shows it unfiltered -- visibility/slicers only)
+    rows = rows_as_dicts(db, f"""
+        SELECT v.lead_name, v.company, v.city, v.email, v.mobile_phone,
+               v.lead_source, v.status, v.user_name, v.created_date
+        FROM vw_leads v
+        {REGION_JOIN}
+        {where}
+        ORDER BY v.created_date DESC NULLS LAST
+    """, params)
+
     return {"overall": overall[0] if overall else {},
-            "by_source": by_source, "by_status": by_status, "by_user": by_user}
+            "by_source": by_source, "by_status": by_status, "by_user": by_user,
+            "by_user_status": by_user_status, "rows": rows}

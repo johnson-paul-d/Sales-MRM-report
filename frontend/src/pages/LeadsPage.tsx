@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { Box, Paper, Typography, CircularProgress, Alert } from '@mui/material'
 import ReactECharts from 'echarts-for-react'
 import type { ColDef } from 'ag-grid-community'
@@ -10,25 +11,48 @@ import { useReportFilters } from '../state/FiltersContext'
 import { fmtInt } from '../components/formatters'
 import { CHART } from '../theme'
 
-const userColumns: ColDef[] = [
-  col('user_name', 'Salesperson', 'text', { minWidth: 180 }),
-  col('total_leads', 'Total Leads', 'int'),
-  col('converted_leads', 'Converted', 'int'),
-  {
-    headerName: 'Conversion %',
-    type: 'numericColumn',
-    valueGetter: (p) => {
-      const t = Number(p.data?.total_leads || 0)
-      const c = Number(p.data?.converted_leads || 0)
-      return t ? Math.round((c / t) * 1000) / 10 : 0
-    },
-    valueFormatter: (p) => `${p.value}%`,
-  },
+// Same columns + order as the PBI Leads detail table
+const detailColumns: ColDef[] = [
+  col('company', 'Company', 'text', { flex: 2 }),
+  col('city', 'City'),
+  col('email', 'Email', 'text', { minWidth: 180 }),
+  col('lead_name', 'Lead', 'text', { minWidth: 160 }),
+  col('lead_source', 'Source'),
+  col('mobile_phone', 'Mobile'),
+  col('user_name', 'Salesperson', 'text', { minWidth: 160 }),
 ]
+
+// PBI pivot column order: known statuses first, anything new appended
+const STATUS_ORDER = ['New', 'Working', 'Qualified', 'Unqualified', 'Dropped', 'Dormant']
 
 export default function LeadsPage() {
   const { filters } = useReportFilters()
   const { data, isLoading, error } = useLeads(filters)
+
+  // Pivot user x status counts into one row per salesperson (PBI Leads pivot)
+  const { pivotRows, pivotColumns } = useMemo(() => {
+    const cells = data?.by_user_status ?? []
+    const present = new Set(cells.map((c) => c.status || 'Unknown'))
+    const statuses = [
+      ...STATUS_ORDER.filter((s) => present.has(s)),
+      ...[...present].filter((s) => !STATUS_ORDER.includes(s)).sort(),
+    ]
+    const m = new Map<string, Record<string, any>>()
+    for (const c of cells) {
+      const key = c.user_name || '—'
+      if (!m.has(key)) m.set(key, { user_name: key, total: 0 })
+      const row = m.get(key)!
+      row[c.status || 'Unknown'] = Number(c.total_leads)
+      row.total += Number(c.total_leads)
+    }
+    const rows = [...m.values()].sort((a, b) => b.total - a.total)
+    const columns: ColDef[] = [
+      col('user_name', 'Salesperson', 'text', { minWidth: 160 }),
+      ...statuses.map((s) => col(s, s, 'int')),
+      col('total', 'Total', 'int'),
+    ]
+    return { pivotRows: rows, pivotColumns: columns }
+  }, [data])
 
   const sources = (data?.by_source ?? []).filter((s) => s.lead_source)
   const donutOption = {
@@ -75,16 +99,23 @@ export default function LeadsPage() {
             <Paper variant="outlined" sx={{ p: 2 }}>
               <Typography variant="subtitle2" sx={{ mb: 1 }}>
                 Leads by Source — CPS team, current + previous FY
-</Typography>
+              </Typography>
               <ReactECharts option={donutOption} style={{ height: 320 }} notMerge />
             </Paper>
             <Paper variant="outlined" sx={{ p: 0 }}>
               <Typography variant="subtitle2" sx={{ p: 2, pb: 1 }}>
                 By Salesperson — CPS team, current + previous FY
-</Typography>
-              <DataTable rows={data?.by_user ?? []} columns={userColumns} height={320} />
+              </Typography>
+              <DataTable rows={pivotRows} columns={pivotColumns} height={320} />
             </Paper>
           </Box>
+
+          <Paper variant="outlined" sx={{ p: 0, mt: 2 }}>
+            <Typography variant="subtitle2" sx={{ p: 2, pb: 1 }}>
+              All Leads
+            </Typography>
+            <DataTable rows={data?.rows ?? []} columns={detailColumns} height={420} />
+          </Paper>
         </>
       )}
     </ReportShell>

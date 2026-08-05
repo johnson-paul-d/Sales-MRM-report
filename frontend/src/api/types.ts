@@ -67,4 +67,10 @@ export interface LeadsResponse {
   by_source: { lead_source: string; total_leads: number; converted_leads: number }[]
   by_status: { status: string; total_leads: number }[]
   by_user: { user_name: string; total_leads: number; converted_leads: number }[]
+  by_user_status: { user_name: string | null; status: string | null; total_leads: number }[]
+  rows: {
+    lead_name: string; company: string | null; city: string | null; email: string | null
+    mobile_phone: string | null; lead_source: string | null; status: string | null
+    user_name: string | null; created_date: string | null
+  }[]
 }

@@ -151,17 +151,19 @@ export const REPORTS: Record<string, ReportConfig> = {
     subtitle: 'Open opportunities with stale or no recent activity',
     path: 'no-visits',
     columns: [
+      // Same columns + order as the PBI No Visits table
       col('user_name', 'Salesperson'),
-      col('region_name', 'Region'),
       col('account_name', 'Account'),
       col('opportunity_name', 'Opportunity', 'text', { flex: 2 }),
       col('product_name', 'Product'),
       col('quantity', 'Qty', 'int'),
       col('total_price', 'Line Total', 'inr'),
       col('stage_name', 'Stage'),
-      col('days_since_last_activity', 'Days Idle', 'int'),
       col('latest_checkin_opp', 'Last Check-in (Opp)', 'date'),
+      col('latest_checkin_acc', 'Last Check-in (Acc)', 'date'),
       col('close_date', 'Close Date', 'date'),
+      col('days_since_last_activity', 'Days Idle', 'int'),
+      col('billing_city', 'City'),
     ],
     charts: [
       { title: 'Stale value by Salesperson', kind: 'bar', groupBy: 'user_name', value: 'total_price', money: true, color: CHART.dropped, top: 10 },
