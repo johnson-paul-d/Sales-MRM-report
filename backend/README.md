@@ -25,12 +25,12 @@ DB credentials are read from the **project-root `.env`** (shared with the ETL).
 Backend-only settings live in `backend/.env` (copy from `.env.example`) — set a real
 `SECRET_KEY` before any non-local use.
 
-## Dev accounts (created by seed.py — CHANGE THESE)
+## Accounts
 
-| Role | Email | Password | Scope |
-|---|---|---|---|
-| CEO / Admin | `admin@sieger.in` | `Sieger@Admin1` | Everything + admin panel |
-| Manager | `gr@siegerglobal.net` | `Sieger@Manager1` | Self + reports (hierarchy) |
+`seed.py` creates an admin (`admin@sieger.in`) and a demo manager account. Passwords
+come from `SEED_ADMIN_PASSWORD` / `SEED_MANAGER_PASSWORD` env vars, or are randomly
+generated and printed once. **No credentials live in this repository** — any password
+that ever appeared here has been rotated and no longer works.
 
 ## How it fits together
 
