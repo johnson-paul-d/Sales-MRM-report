@@ -13,7 +13,7 @@ queries these views (adding the per-user security filter); the React app renders
 |---|---|---|
 | `sieger_fy_start_year / _fy_label / _fq / _fq_label` | functions | India financial year (Apr–Mar), e.g. `FY25-26`, `Q1..Q4` |
 | `fn_subordinate_user_ids(user_id)` | function | Security: self + all descendants via `user.ManagerId` (recursive) |
-| `dim_region` | view | Provisional region lookup from `account.CPS_Region__c` |
+| `app.region` / `app.user_region` | tables | Region lookup, maintained in the Admin panel (User→Region); the API joins it per owner. Replaces the old provisional `dim_region` view |
 | `vw_opportunity` | view | Opportunity + owner name + region + account + latest task + FY helpers |
 | `vw_quote` | view | Quote + owner + region + open/live/lost/accepted flags |
 | `vw_quote_line_item` | view | The money grain (product, qty, total price) joined to opp/owner/region |
@@ -22,6 +22,13 @@ queries these views (adding the per-user security filter); the React app renders
 | `vw_earliest_quotes_by_month` | view | Earliest *presented* quote's line items per opportunity |
 | `vw_sales_tracker` | view | Hero KPI matrix: owner × month → 7 measures |
 | `vw_lead_conversion` | view | Lead totals + converted + conversion % by source/status |
+
+**Latest Action Task:** the `latest_action_task` / `action_activity_date` columns in
+`vw_opportunity` and `vw_quote_line_item` come from the **Labs Action Plans** managed package —
+the latest `labsactionplans__aptask` per opportunity, joined via
+`labsactionplans__actionplan."LabsActionPlans__Opportunity__c"`. Both package objects sync in the
+ETL (since 2026-08-05). The standard `ActionPlan` object is empty in this org
+(0 rows vs 3,450 plans / 4,003 tasks in the package).
 
 ## Measure definitions (validated against your data)
 
@@ -40,19 +47,24 @@ queries these views (adding the per-user security filter); the React app renders
 Reconciliation at build time: won=249, dropped=537, open=1,876, won value=₹4,302,111,845,
 conversion=8.19% — all match column profiling.
 
-## ⚠ Assumptions & open questions (confirm these)
+## ⚠ Assumptions & open questions (updated 2026-08-05)
 
-1. **Region is PROVISIONAL.** `user.DB_Region__c` is empty and `account.CPS_Region__c` is
-   null for ~88% of opportunities. Region is likely derived from **Salesforce UserRole**.
-   → Confirm the true source; it's centralized so it swaps in one place.
-2. **UserRole is not synced.** Needed for the chosen role-based security *and* probably Region.
-   → Add `UserRole` (+`ParentRoleId`) to the ETL. Highest-value next infra step.
+1. **Region — DECIDED.** ✅ App-maintained: `app.region` + `app.user_region`, edited in the
+   Admin panel (User→Region). Not derived from UserRole or `account.CPS_Region__c`; it stays
+   centralized — the API joins it per owner.
+2. **UserRole is not synced** — and no longer needs to be: Region is app-maintained (above) and
+   security uses the `user.ManagerId` hierarchy (`fn_subordinate_user_ids`). Sync it only if a
+   future report needs SF role names.
 3. **Quote status → open/live/lost mapping** is inferred from picklist values. Confirm business rules.
-4. **Missing columns** (ETL skips compound/address fields): `account.Name`, `account.BillingCity`,
-   `lead.City`. "Acc name" uses `COALESCE(account.Site, account.Contact_Name__c)` as a stopgap.
-   → Enhance ETL to pull these flat.
-5. **Forecast/Snapshot history** (Last Month page) can't be rebuilt retroactively — needs a
-   forward-going nightly snapshot job (phase 2).
+4. **Missing columns — FIXED** (2026-08-05). The ETL keeps the needed compound components via a
+   per-object keep-list (`KEEP_COMPOUND_FIELDS` in `salesforce_to_postgres.py`: `account.Name`,
+   `BillingCity`, `BillingState`; `lead.City`, `State`); backfill done. "Acc name" now prefers
+   the real name: `COALESCE(account.Name, Site, Contact_Name__c)`.
+5. **Forecast/Snapshot history — SYNCING.** ✅ The two SF Historical-Trending reports
+   (North `00Ofu000006f1pVEAQ`, South `00Ofu000005vp1JEAQ`) load in the ETL →
+   `forecasts_bi_mrm_cps_*`; [`sql/03_forecasts.sql`](../sql/03_forecasts.sql) builds
+   `vw_forecasts` + `vw_forecast_latest` (joined by the Last Month page). History from before
+   the reports' snapshot window still can't be rebuilt retroactively.
 
 ## Security model (how "one app" replaces many reports)
 

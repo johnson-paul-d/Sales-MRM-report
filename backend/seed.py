@@ -9,10 +9,12 @@ Creates (idempotent):
   * a demo MANAGER account mapped to the Salesforce user with the most reports
     (so you can test hierarchy-scoped visibility)
 
-Passwords can be overridden with env vars SEED_ADMIN_PASSWORD / SEED_MANAGER_PASSWORD.
-CHANGE THESE after first login.
+Passwords come from env vars SEED_ADMIN_PASSWORD / SEED_MANAGER_PASSWORD; when
+unset, a strong random password is generated and printed ONCE to the console.
+There are deliberately no hardcoded defaults -- this repo is public.
 """
 import os
+import secrets
 from sqlalchemy import text
 
 from app.db import SessionLocal, init_db
@@ -21,8 +23,8 @@ from app.security import hash_password
 
 DEFAULT_REGIONS = ["Tamil Nadu", "West", "North", "East", "Karnataka", "Kerala", "Andhra Pradesh"]
 ADMIN_EMAIL = "admin@sieger.in"
-ADMIN_PASSWORD = os.getenv("SEED_ADMIN_PASSWORD", "Sieger@Admin1")
-MANAGER_PASSWORD = os.getenv("SEED_MANAGER_PASSWORD", "Sieger@Manager1")
+ADMIN_PASSWORD = os.getenv("SEED_ADMIN_PASSWORD") or secrets.token_urlsafe(12)
+MANAGER_PASSWORD = os.getenv("SEED_MANAGER_PASSWORD") or secrets.token_urlsafe(12)
 
 
 def seed():

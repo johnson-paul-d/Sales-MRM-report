@@ -10,18 +10,17 @@ import { useReportFilters } from '../state/FiltersContext'
 import { fmtInt } from '../components/formatters'
 import { CHART } from '../theme'
 
+// Rows then Values exactly as the pbix New Opportunity - Last Month pivotTable
 const columns: ColDef[] = [
-  col('user_name', 'Salesperson'),
-  col('region_name', 'Region'),
-  col('opportunity_name', 'Opportunity', 'text', { flex: 2 }),
-  col('stage_name', 'Stage'),
-  col('created_date_only', 'Created', 'date'),
-  col('quantity', 'Qty', 'int'),
-  col('quote_total_price', 'Quoted Value', 'inr'),
-  col('project_stage', 'Project Stage'),
-  col('building_construction_stage', 'Construction Stage'),
-  col('latest_action_task', 'Latest Task', 'text', { flex: 2 }),
-  col('action_activity_date', 'Task Date', 'date'),
+  col('user_name', 'User Name'),
+  col('opportunity_name', 'Opp name', 'text', { flex: 2 }),
+  col('stage_name', 'StageName'),
+  col('latest_action_task', 'Next Action', 'text', { flex: 2 }),
+  col('action_activity_date', 'Due date', 'date'),
+  col('project_stage', 'Project_stage__c'),
+  col('quantity', 'Car spaces', 'int'),
+  col('quote_total_price', 'Amount', 'inr'),
+  col('building_construction_stage', 'Building stage'),
 ]
 
 export default function NewOpportunityPage() {

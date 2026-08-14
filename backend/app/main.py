@@ -2,17 +2,21 @@
 
 Run (from the backend/ directory):
     uvicorn app.main:app --reload --port 8000
-Docs at http://localhost:8000/docs
+Docs at http://localhost:8000/docs (disabled in production)
 """
 import logging
+import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
 from .db import init_db
 from .routers import auth, meta, reports, admin
+
+# Render sets RENDER=true in every service container.
+IS_PROD = bool(os.getenv("RENDER"))
 
 
 @asynccontextmanager
@@ -21,6 +25,9 @@ async def lifespan(app: FastAPI):
     # startup on a transient DB/tunnel hiccup -- the schema already exists in
     # normal operation, and the app must still come up so its HTTP port opens
     # (otherwise Render's health check kills the deploy).
+    if IS_PROD and settings.secret_key == "dev-insecure-change-me":
+        logging.getLogger("uvicorn.error").critical(
+            "SECRET_KEY is the insecure default in production -- set the env var!")
     try:
         init_db()
     except Exception as exc:  # noqa: BLE001
@@ -32,7 +39,23 @@ app = FastAPI(
     title="Sieger Sales Intelligence Platform API",
     version="0.1.0",
     lifespan=lifespan,
+    # No API explorer in production -- it maps the whole attack surface for free.
+    docs_url=None if IS_PROD else "/docs",
+    redoc_url=None if IS_PROD else "/redoc",
+    openapi_url=None if IS_PROD else "/openapi.json",
 )
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    resp = await call_next(request)
+    resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+    resp.headers.setdefault("X-Frame-Options", "DENY")
+    resp.headers.setdefault("Referrer-Policy", "no-referrer")
+    resp.headers.setdefault("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
+    # API responses carry scoped business data -- never let a shared cache keep them.
+    resp.headers.setdefault("Cache-Control", "no-store")
+    return resp
 
 app.add_middleware(
     CORSMiddleware,

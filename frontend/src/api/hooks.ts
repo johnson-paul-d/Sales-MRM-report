@@ -39,6 +39,34 @@ export const useLeads = (f?: ReportFilters) =>
     queryFn: async () => (await api.get<LeadsResponse>(`/reports/leads?${toParams(f)}`)).data,
   })
 
+export interface LastMonthResponse {
+  rows: any[]
+  snapshots: string[]      // available forecast snapshot dates, newest first
+  snapshot_date: string | null
+}
+export const useLastMonth = (f?: ReportFilters, snapshot?: string) =>
+  useQuery({
+    queryKey: ['last-month', f, snapshot],
+    queryFn: async () => {
+      const params = toParams(f)
+      const qs = snapshot ? `${params}&snapshot=${snapshot}` : `${params}`
+      return (await api.get<LastMonthResponse>(`/reports/last-month?${qs}`)).data
+    },
+  })
+
+export interface OpenFunnelResponse {
+  rows: any[]
+  // Active targets (period covers today) from app.sales_target, owner-resolved
+  targets: { salesforce_user_id: string | null; region_id: number | null; owner: string; target_amount: number }[]
+  // Owner x quote-created-month cells for the PBI matrix
+  by_quote_month: { user_name: string; year_month: string; total_price: number }[]
+}
+export const useOpenFunnel = (f?: ReportFilters) =>
+  useQuery({
+    queryKey: ['open-funnel-full', f],
+    queryFn: async () => (await api.get<OpenFunnelResponse>(`/reports/open-funnel?${toParams(f)}`)).data,
+  })
+
 export interface NewOppResponse {
   rows: any[]
   by_user: { user_name: string; count: number; min_construction_stage: string | null }[]

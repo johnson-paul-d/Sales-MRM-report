@@ -11,15 +11,15 @@ import { useReportFilters } from '../state/FiltersContext'
 import { fmtInt } from '../components/formatters'
 import { CHART } from '../theme'
 
-// Same columns + order as the PBI Leads detail table
+// Columns, order + headers exactly as the pbix Leads detail tableEx (raw field names)
 const detailColumns: ColDef[] = [
   col('company', 'Company', 'text', { flex: 2 }),
   col('city', 'City'),
   col('email', 'Email', 'text', { minWidth: 180 }),
-  col('lead_name', 'Lead', 'text', { minWidth: 160 }),
-  col('lead_source', 'Source'),
-  col('mobile_phone', 'Mobile'),
-  col('user_name', 'Salesperson', 'text', { minWidth: 160 }),
+  col('lead_name', 'LastName', 'text', { minWidth: 160 }),
+  col('lead_source', 'LeadSource'),
+  col('mobile_phone', 'MobilePhone'),
+  col('user_name', 'User name', 'text', { minWidth: 160 }),
 ]
 
 // PBI pivot column order: known statuses first, anything new appended
@@ -47,7 +47,7 @@ export default function LeadsPage() {
     }
     const rows = [...m.values()].sort((a, b) => b.total - a.total)
     const columns: ColDef[] = [
-      col('user_name', 'Salesperson', 'text', { minWidth: 160 }),
+      col('user_name', 'User name', 'text', { minWidth: 160 }),   // pbix pivot row header
       ...statuses.map((s) => col(s, s, 'int')),
       col('total', 'Total', 'int'),
     ]

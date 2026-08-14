@@ -48,7 +48,14 @@ Validated totals: Visits 18,271 · Closed Won ₹168.07 Cr · Closed Lost ₹402
 ## Status: implemented vs remaining
 - ✅ Sales Tracker measures, EarliestQuotesByMonth, Conversion, Region mapping
 - ✅ Detail endpoints (Closed Won/Lost, Dropped, Open Funnel, No Visits, Top Enquiries) apply the Sieger-Parking + Sync + stage/value filters
-- ⏳ Frontend: month drill-down on Sales Tracker; secondary tables/bar chart on that page
-- ⏳ Pages not yet built: This Month, Last Month, Six-Month Booking Plan, New Opportunity
-- ⏳ Target vs actual (needs `sales_target` data) · Forecast snapshot (needs nightly job)
-- ⏳ Deployment ("online")
+- ✅ Sales Tracker frontend: month drill-down (User → FY → Month tree), KPI cards, Closed Won / New Opportunities bar charts, Earliest Quotes tab
+- ✅ All pages built: This Month, Last Month, Six-Month Booking Plan, New Opportunity, New Quote Released, Leads + Executive Overview (routes in `frontend/src/App.tsx` ↔ endpoints in `backend/app/routers/reports.py`)
+- ✅ Forecast snapshots: the two SF Historical-Trending reports sync in the ETL; `sql/03_forecasts.sql` builds `vw_forecasts` / `vw_forecast_latest`, joined by Last Month for Close Date (Historical) + Snapshot Date
+- ✅ Every page's detail table matches its pbix visual exactly — fields, order AND display names (extracted from the pbix `Report/Layout`; unrenamed pbix fields keep raw names like `StageName`)
+- ✅ Open Funnel: all four pbix visuals — Target vs Achieved table (Owner / Target Million / Amount, fed by `app.sales_target` since the pbix's own `Target` table is orphaned/empty in the model), User × FY-Quarter matrix, opp detail table, User × quote-created-month matrix
+- ✅ Sales Tracker: new-opportunities detail pivot added beside the bar chart (pbix parity)
+- ⏳ Deployment ("online") — in progress: Render Docker backend (`backend/Dockerfile`) + Tailscale to local Postgres
+
+Not replicated (deliberately): the pbix's unnamed scratch pages "Page 1" (User phone list)
+and "Page 2" (Account/Contact billing pivot); the Six-Month page's second matrix (same
+data as the first, reordered — covered by column sorting in the app).

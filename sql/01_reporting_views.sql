@@ -202,6 +202,7 @@ SELECT
     (o."IsClosed" IS NOT TRUE) AS is_open,
     (o."StageName" = 'Dropped') AS is_dropped,
     o."Division__c"       AS division,
+    o."CurrencyIsoCode"   AS currency_iso_code,
     o."Opportunity_Amount__c" AS opportunity_amount,
     o."Remarks__c"        AS remarks,
     o."CloseDate"         AS close_date,
@@ -220,6 +221,7 @@ SELECT
     q."Status"            AS quote_status,
     q."Sync_Quote__c"     AS sync_quote,
     q."Presented_Date__c" AS presented_date,
+    (q."CreatedDate")::date AS quote_created_date,  -- PBI Open Funnel: quotes-by-created-month matrix
     o."Loss_Reason__c"    AS loss_reason
 FROM quotelineitem qli
 JOIN quote q            ON q."Id" = qli."QuoteId"
