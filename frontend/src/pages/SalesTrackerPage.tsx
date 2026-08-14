@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react'
 import { Box, Paper, Typography, CircularProgress, Alert, Tabs, Tab } from '@mui/material'
 import ReactECharts from 'echarts-for-react'
+import type { ColDef } from 'ag-grid-community'
 import ReportShell from '../components/ReportShell'
 import SalesTrackerTree from '../components/SalesTrackerTree'
 import DataTable from '../components/DataTable'
 import KpiCard from '../components/KpiCard'
-import { REPORTS } from './reportConfigs'
+import { REPORTS, col } from './reportConfigs'
 import { useReport, useNewOpportunity } from '../api/hooks'
 import { useReportFilters } from '../state/FiltersContext'
 import { fmtINR, fmtInt } from '../components/formatters'
@@ -26,6 +27,18 @@ interface Agg {
   dropped_value: number
 }
 const N = (x: number | null | undefined) => Number(x || 0)
+
+// Rows then Values exactly as the pbix Sales Tracker "new opportunities" pivotTable
+const newOppColumns: ColDef[] = [
+  col('user_name', 'User Name'),
+  col('opportunity_name', 'Opp name', 'text', { flex: 2 }),
+  col('created_date_only', 'Created Date Only', 'date'),
+  col('stage_name', 'StageName'),
+  col('latest_action_task', 'Next Action', 'text', { flex: 2 }),
+  col('action_activity_date', 'Due date', 'date'),
+  col('project_stage', 'Project_stage__c'),
+  col('building_construction_stage', 'Building stage'),
+]
 
 function aggregate(rows: SalesTrackerRow[]): Agg[] {
   const m = new Map<string, Agg>()
@@ -137,12 +150,17 @@ export default function SalesTrackerPage() {
           )}
 
           {tab === 1 && (
-            <Paper variant="outlined" sx={{ p: 2 }}>
-              <Typography variant="subtitle2" sx={{ mb: 1 }}>New Opportunities by Salesperson (last month)</Typography>
-              {newOpp.isLoading
-                ? <Box sx={{ display: 'flex', justifyContent: 'center', my: 6 }}><CircularProgress /></Box>
-                : <ReactECharts option={oppChart} style={{ height: 360 }} notMerge />}
-            </Paper>
+            newOpp.isLoading ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', my: 6 }}><CircularProgress /></Box>
+            ) : (
+              <>
+                <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
+                  <Typography variant="subtitle2" sx={{ mb: 1 }}>New Opportunities by Salesperson (last month)</Typography>
+                  <ReactECharts option={oppChart} style={{ height: 300 }} notMerge />
+                </Paper>
+                <DataTable rows={newOpp.data?.rows ?? []} columns={newOppColumns} height="calc(100vh - 720px)" />
+              </>
+            )
           )}
 
           {tab === 2 && (

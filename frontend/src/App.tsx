@@ -12,6 +12,8 @@ import ReportTablePage from './pages/ReportTablePage'
 import LeadsPage from './pages/LeadsPage'
 import NewOpportunityPage from './pages/NewOpportunityPage'
 import ClosedLostPage from './pages/ClosedLostPage'
+import LastMonthPage from './pages/LastMonthPage'
+import OpenFunnelPage from './pages/OpenFunnelPage'
 import OverviewPage from './pages/OverviewPage'
 import AdminPage from './pages/AdminPage'
 import { REPORTS } from './pages/reportConfigs'
@@ -38,12 +40,12 @@ export default function App() {
                     <Route path="/closed-won" element={<ReportTablePage cfg={REPORTS['closed-won']} />} />
                     <Route path="/closed-lost" element={<ClosedLostPage />} />
                     <Route path="/dropped" element={<ReportTablePage cfg={REPORTS['dropped']} />} />
-                    <Route path="/open-funnel" element={<ReportTablePage cfg={REPORTS['open-funnel']} />} />
+                    <Route path="/open-funnel" element={<OpenFunnelPage />} />
                     <Route path="/top-enquiries" element={<ReportTablePage cfg={REPORTS['top-enquiries']} />} />
                     <Route path="/no-visits" element={<ReportTablePage cfg={REPORTS['no-visits']} />} />
                     <Route path="/new-quotes" element={<ReportTablePage cfg={REPORTS['new-quotes']} />} />
                     <Route path="/this-month" element={<ReportTablePage cfg={REPORTS['this-month']} />} />
-                    <Route path="/last-month" element={<ReportTablePage cfg={REPORTS['last-month']} />} />
+                    <Route path="/last-month" element={<LastMonthPage />} />
                     <Route path="/six-month-plan" element={<ReportTablePage cfg={REPORTS['six-month-plan']} />} />
                     <Route path="/new-opportunity" element={<NewOpportunityPage />} />
                     <Route path="/leads" element={<LeadsPage />} />

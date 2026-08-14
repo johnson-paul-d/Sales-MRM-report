@@ -69,7 +69,9 @@ function buildTree(rows: SalesTrackerRow[]): UserNode[] {
   return list
 }
 
-const HEADERS = ['Visits', 'Opps', 'Quotes', 'Open Quotes', 'New Quotes', 'Closed Won', 'Closed Lost', 'Dropped']
+// pbix matrix measure headers ('New quote' is the report's rename of Live Quote
+// Value); 'Quotes Created' is an app-added measure with no pbix counterpart.
+const HEADERS = ['Visits', 'Opportunities Created', 'Quotes Created', 'Open Quotes Value', 'New quote', 'Closed Won Value', 'Closed Lost Value', 'Dropped Value']
 
 function MeasureCells({ m }: { m: M }) {
   return (

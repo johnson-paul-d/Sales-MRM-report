@@ -115,8 +115,10 @@ CALCULATE(
         'Visit Plan Allocation'[Opportunity__c] = RELATED(Opportunity[Id]))
 )
 ```
-**App:** `vw_quote_line_item.latest_checkin_opp` → `/api/reports/no-visits`. ⚠ currently the
-Salesforce rollup field `Opportunity.Latest_Checkin__c`, not recomputed from VPA (offer: exact parity).
+**App:** `vw_quote_line_item.latest_checkin_opp` → `/api/reports/no-visits`. ✅ exact — recomputed
+from `visit_plan_allocation` as `MAX("CheckInDate__c")` where `Opportunity__c` = the opp (excluding
+deleted rows), in both `vw_opportunity` and `vw_quote_line_item`. (No longer the SF rollup
+`Opportunity.Latest_Checkin__c`.)
 
 ### `LatestCheckin - Acc`  — table: *Opportunity*   ·   page: **No Visits**
 ```dax
@@ -126,7 +128,8 @@ CALCULATE(
         'Visit Plan Allocation'[Account__c] = RELATED(Opportunity[AccountId]))
 )
 ```
-**App:** `vw_quote_line_item.latest_checkin_acc`. ⚠ SF rollup (`Account.Latest_Checkin__c`).
+**App:** `vw_quote_line_item.latest_checkin_acc`. ✅ exact — `MAX("CheckInDate__c")` from
+`visit_plan_allocation` where `Account__c` = the opp's account (excluding deleted rows), same views.
 
 *(An empty stub measure `Opportunity[Measure]` also exists — ignored.)*
 

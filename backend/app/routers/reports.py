@@ -7,6 +7,8 @@ Product-grain tables are aggregated to ONE ROW PER OPPORTUNITY + PRODUCT with
 SUM(Qty)/SUM(TotalPrice) -- matching Power BI's Sum(...) tables and collapsing
 duplicate quote line items.
 """
+from datetime import date
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
@@ -89,7 +91,9 @@ def closed_won(vis: Visibility = Depends(get_visibility),
         "v.stage_name = 'Closed Won' AND v.sync_quote IS TRUE AND UPPER(v.quote_status) = 'ACCEPTED'",
         ["MAX(v.account_name) AS account_name", "MAX(v.stage_name) AS stage_name",
          "MAX(v.close_date) AS close_date", "MAX(v.opportunity_amount) AS opportunity_amount",
-         "MAX(v.division) AS division", "MAX(v.remarks) AS remarks"])
+         "MAX(v.division) AS division", "MAX(v.remarks) AS remarks",
+         # PBI Closed Won table also shows CurrencyIsoCode + BillingCity
+         "MAX(v.currency_iso_code) AS currency_iso_code", "MAX(v.billing_city) AS billing_city"])
     return {"rows": rows_as_dicts(db, sql, params)}
 
 
@@ -151,7 +155,50 @@ def open_funnel(vis: Visibility = Depends(get_visibility),
         {_and(where, "v.is_open IS TRUE AND v.has_synced_quote IS TRUE")}
         ORDER BY v.opportunity_amount DESC NULLS LAST
     """
-    return {"rows": rows_as_dicts(db, sql, params)}
+    rows = rows_as_dicts(db, sql, params)
+
+    # PBI Open Funnel target tableEx (Owner / Target Million / Amount). The pbix's
+    # `Target` table no longer exists in the model, so targets come from
+    # app.sales_target (admin-maintained). Only periods covering today count.
+    tgt_params: dict = {}
+    tgt_vis = ""
+    if not vis.can_view_all:
+        tgt_vis = ("AND (t.salesforce_user_id = ANY(:_tgt_owners) "
+                   "OR t.salesforce_user_id IS NULL)")
+        tgt_params["_tgt_owners"] = vis.owner_ids or []
+    targets = rows_as_dicts(db, f"""
+        SELECT t.salesforce_user_id, t.region_id,
+               COALESCE(u."Name", rg.name, 'All') AS owner,
+               SUM(t.target_amount) AS target_amount
+        FROM app.sales_target t
+        LEFT JOIN "user" u     ON u."Id" = t.salesforce_user_id
+        LEFT JOIN app.region rg ON rg.id = t.region_id
+        WHERE CURRENT_DATE >= t.period_start
+          AND CURRENT_DATE < t.period_start + CASE t.period_type
+                WHEN 'MONTH'   THEN interval '1 month'
+                WHEN 'QUARTER' THEN interval '3 months'
+                ELSE                interval '1 year' END
+          {tgt_vis}
+        GROUP BY t.salesforce_user_id, t.region_id, u."Name", rg.name
+        ORDER BY 3
+    """, tgt_params)
+
+    # PBI Open Funnel matrix: owner x quote-created month -> Sum(TotalPrice)
+    # (quote grain; same open + synced scope, ignoring the close-date slicers).
+    qm_where, qm_params = build_filters(vis, f, owner_col="v.owner_id",
+                                        division_col="v.division")
+    by_quote_month = rows_as_dicts(db, f"""
+        SELECT v.user_name, to_char(v.quote_created_date, 'YYYY-MM') AS year_month,
+               SUM(v.total_price) AS total_price
+        FROM vw_quote_line_item v
+        {REGION_JOIN}
+        {_and(qm_where, "v.is_open IS TRUE AND v.sync_quote IS TRUE "
+                        "AND v.quote_created_date IS NOT NULL")}
+        GROUP BY v.user_name, 2
+        ORDER BY v.user_name, 2
+    """, qm_params)
+
+    return {"rows": rows, "targets": targets, "by_quote_month": by_quote_month}
 
 
 # ---------------------------------------------------------------------------
@@ -260,36 +307,56 @@ def this_month(vis: Visibility = Depends(get_visibility),
 @router.get("/last-month")
 def last_month(vis: Visibility = Depends(get_visibility),
                f: CommonFilters = Depends(common_filters),
+               snapshot: date | None = Query(None, description="Forecast snapshot date (default: latest)"),
                db: Session = Depends(get_db)):
-    where, params = build_filters(vis, f, owner_col="v.owner_id", division_col="v.division",
-                                  month_col="v.close_date")
-    date_pred = ("" if f.month else
-                 " AND v.close_date >= date_trunc('month', CURRENT_DATE) - interval '1 month'"
-                 " AND v.close_date < date_trunc('month', CURRENT_DATE)")
+    """PBI Last Month page: quote line items joined to the two Salesforce
+    Historical-Trending reports (vw_forecasts) AT ONE SNAPSHOT DATE, windowed
+    by the forecast's Close Date (Historical). The pbix pinned one snapshot
+    (2026-03-06) and a hand-picked window; here the snapshot is selectable and
+    the window = the selected snapshot's calendar month (FilterBar month
+    overrides it)."""
+    where, params = build_filters(vis, f, owner_col="v.owner_id", division_col="v.division")
+
+    snapshots = [r["snapshot_date"] for r in rows_as_dicts(db, """
+        SELECT DISTINCT snapshot_date FROM vw_forecasts
+        WHERE snapshot_date IS NOT NULL ORDER BY snapshot_date DESC
+    """, {})]
+    snap = snapshot if snapshot in snapshots else (snapshots[0] if snapshots else None)
+    if snap is None:
+        return {"rows": [], "snapshots": [], "snapshot_date": None}
+    params["_snap"] = snap
+
+    if f.month:
+        hist_window = "to_char(fc.close_date_historical, 'YYYY-MM') = :_month"
+        params["_month"] = f.month
+    else:
+        hist_window = ("fc.close_date_historical >= date_trunc('month', CAST(:_snap AS date)) "
+                       "AND fc.close_date_historical < date_trunc('month', CAST(:_snap AS date)) + interval '1 month'")
+
     # Same filters as the Power BI page (synced, not rejected, CPS team, PBI bad-opp exclusions).
     pred = ("v.sync_quote IS TRUE AND UPPER(v.quote_status) <> 'REJECTED' "
             "AND ur.region_id IS NOT NULL "
             "AND v.opportunity_name NOT IN "
-            "('AIRFORCE ADMINSTRATIVE COLLEGE-','HTC GLOBAL @ GUINDY','LIFESTYLE BUILDING')"
-            + date_pred)
-    # Aggregate to opp+product, and join the latest Forecast snapshot per opportunity
-    # (the two Salesforce reports) for Close Date (Historical) + Snapshot Date.
+            "('AIRFORCE ADMINSTRATIVE COLLEGE-','HTC GLOBAL @ GUINDY','LIFESTYLE BUILDING') "
+            "AND " + hist_window)
     sql = f"""
         SELECT v.owner_id, MAX(v.user_name) AS user_name, ur.region_id, MAX(r.name) AS region_name,
                v.opportunity_name, v.product_name,
                SUM(v.quantity) AS quantity, SUM(v.total_price) AS total_price,
                MAX(v.stage_name) AS stage_name, MAX(v.close_date) AS close_date,
                MAX(v.remarks) AS remarks, MAX(v.probability) AS probability,
-               MAX(fl.close_date_historical) AS close_date_historical,
-               MAX(fl.snapshot_date) AS snapshot_date
+               MAX(fc.close_date_historical) AS close_date_historical,
+               MAX(fc.snapshot_date) AS snapshot_date
         FROM vw_quote_line_item v
         {REGION_JOIN}
-        LEFT JOIN vw_forecast_latest fl ON fl.opportunity_name = v.opportunity_name
+        JOIN vw_forecasts fc ON fc.opportunity_name = v.opportunity_name
+                            AND fc.snapshot_date = :_snap
         {_and(where, pred)}
         GROUP BY v.owner_id, ur.region_id, v.opportunity_id, v.opportunity_name, v.product_name
         ORDER BY MAX(v.close_date) DESC, MAX(v.user_name)
     """
-    return {"rows": rows_as_dicts(db, sql, params)}
+    return {"rows": rows_as_dicts(db, sql, params),
+            "snapshots": snapshots, "snapshot_date": snap}
 
 
 # ---------------------------------------------------------------------------
