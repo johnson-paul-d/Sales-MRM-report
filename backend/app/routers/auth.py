@@ -1,4 +1,5 @@
 """Authentication endpoints."""
+import os
 import time
 from collections import defaultdict, deque
 from datetime import datetime, timezone
@@ -43,14 +44,31 @@ def _record_failure(*keys: str) -> None:
     now = time.monotonic()
     for key in keys:
         _failures[key].append(now)
+    # Bound memory: an attacker cycling emails/IPs must not grow the dict
+    # forever. Sweep buckets whose whole window has already expired.
+    if len(_failures) > 5000:
+        for key in [k for k, q in _failures.items() if not q or now - q[-1] > _FAIL_WINDOW_SECS]:
+            del _failures[key]
+
+
+def _client_ip(request: Request) -> str:
+    """Client IP for throttling. On Render the socket peer is the proxy, so
+    every user would share one bucket (5 stray failures = everyone locked out).
+    The proxy APPENDS the true client IP to X-Forwarded-For, so the rightmost
+    entry is trustworthy there; the leftmost entries are client-supplied and
+    spoofable, which is why uvicorn's --proxy-headers (first-entry) isn't used."""
+    if os.getenv("RENDER"):
+        xff = request.headers.get("x-forwarded-for", "")
+        if xff:
+            return xff.split(",")[-1].strip()
+    return request.client.host if request.client else "?"
 
 
 @router.post("/login", response_model=Token)
 def login(request: Request, form: OAuth2PasswordRequestForm = Depends(),
           db: Session = Depends(get_db)):
     email = form.username.strip().lower()
-    ip = request.client.host if request.client else "?"
-    keys = (f"email:{email}", f"ip:{ip}")
+    keys = (f"email:{email}", f"ip:{_client_ip(request)}")
     _check_throttle(*keys)
 
     user = db.query(AppUser).filter(AppUser.email == email).first()
@@ -62,7 +80,7 @@ def login(request: Request, form: OAuth2PasswordRequestForm = Depends(),
     _failures.pop(f"email:{email}", None)
     user.last_login = datetime.now(tz=timezone.utc)
     db.commit()
-    return Token(access_token=create_access_token(user.id))
+    return Token(access_token=create_access_token(user))
 
 
 @router.get("/me", response_model=MeOut)

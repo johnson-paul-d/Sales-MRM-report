@@ -25,9 +25,11 @@ async def lifespan(app: FastAPI):
     # startup on a transient DB/tunnel hiccup -- the schema already exists in
     # normal operation, and the app must still come up so its HTTP port opens
     # (otherwise Render's health check kills the deploy).
-    if IS_PROD and settings.secret_key == "dev-insecure-change-me":
+    if IS_PROD and settings.secret_key_is_ephemeral:
         logging.getLogger("uvicorn.error").critical(
-            "SECRET_KEY is the insecure default in production -- set the env var!")
+            "SECRET_KEY env var is missing or under 32 chars -- running with a "
+            "random per-boot key, so every restart logs all users out. Set a "
+            "32+ char random SECRET_KEY on Render!")
     try:
         init_db()
     except Exception as exc:  # noqa: BLE001
@@ -61,8 +63,9 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    # Exactly what the SPA uses -- no blanket grants.
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 app.include_router(auth.router)

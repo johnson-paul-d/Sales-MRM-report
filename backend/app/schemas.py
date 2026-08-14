@@ -1,7 +1,7 @@
 """Pydantic request/response schemas."""
 from datetime import date, datetime
 from decimal import Decimal
-from pydantic import BaseModel, EmailStr, ConfigDict
+from pydantic import BaseModel, EmailStr, ConfigDict, Field
 
 
 # ---- Auth ----
@@ -67,7 +67,7 @@ class AppUserCreate(BaseModel):
     email: EmailStr
     full_name: str | None = None
     salesforce_user_id: str | None = None
-    password: str
+    password: str = Field(min_length=10, max_length=128)
     role: str = "SALESPERSON"
     can_view_all: bool = False
     is_admin: bool = False
@@ -83,7 +83,7 @@ class AppUserUpdate(BaseModel):
 
 
 class PasswordReset(BaseModel):
-    new_password: str
+    new_password: str = Field(min_length=10, max_length=128)
 
 
 # ---- Targets ----

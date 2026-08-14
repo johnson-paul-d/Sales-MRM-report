@@ -45,9 +45,20 @@ def verify_password(password: str, stored: str) -> bool:
         return False
 
 
-def create_access_token(subject: str | int) -> str:
-    expire = datetime.now(tz=timezone.utc) + timedelta(minutes=settings.access_token_expire_minutes)
-    payload = {"sub": str(subject), "exp": expire}
+def _password_fingerprint(hashed_password: str) -> str:
+    """Non-reversible tag of the current password hash, embedded in tokens so
+    that a password change/reset invalidates every previously issued token."""
+    return hashlib.sha256(hashed_password.encode("utf-8")).hexdigest()[:16]
+
+
+def create_access_token(user: AppUser) -> str:
+    now = datetime.now(tz=timezone.utc)
+    payload = {
+        "sub": str(user.id),
+        "iat": now,
+        "exp": now + timedelta(minutes=settings.access_token_expire_minutes),
+        "pv": _password_fingerprint(user.hashed_password),
+    }
     return jwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)
 
 
@@ -61,13 +72,18 @@ def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
+        payload = jwt.decode(
+            token, settings.secret_key, algorithms=[settings.algorithm],
+            options={"require": ["exp", "sub", "pv"]},
+        )
         user_id = int(payload.get("sub"))
     except Exception:
         raise cred_exc
     user = db.get(AppUser, user_id)
     if user is None or not user.is_active:
         raise cred_exc
+    if not hmac.compare_digest(payload.get("pv", ""), _password_fingerprint(user.hashed_password)):
+        raise cred_exc  # password changed since this token was issued
     return user
 
 
