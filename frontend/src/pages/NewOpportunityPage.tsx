@@ -5,7 +5,7 @@ import ReportShell from '../components/ReportShell'
 import DataTable from '../components/DataTable'
 import KpiCard from '../components/KpiCard'
 import { col } from './reportConfigs'
-import { colLabel } from '../components/chartLabels'
+import { colLabel, AXIS_FONT } from '../components/chartLabels'
 import { useNewOpportunity } from '../api/hooks'
 import { useReportFilters } from '../state/FiltersContext'
 import { fmtInt } from '../components/formatters'
@@ -41,8 +41,8 @@ export default function NewOpportunityPage() {
           (u?.min_construction_stage ? `<br/>Min Construction Stage: ${u.min_construction_stage}` : '')
       },
     },
-    xAxis: { type: 'category', data: byUser.map((u) => u.user_name), axisLabel: { rotate: 35, fontSize: 10 } },
-    yAxis: { type: 'value', minInterval: 1 },
+    xAxis: { type: 'category', data: byUser.map((u) => u.user_name), axisLabel: { rotate: 35, ...AXIS_FONT } },
+    yAxis: { type: 'value', minInterval: 1, axisLabel: AXIS_FONT },
     series: [
       {
         type: 'bar',

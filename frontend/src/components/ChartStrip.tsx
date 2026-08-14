@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { Box, Paper, Typography } from '@mui/material'
 import ReactECharts from 'echarts-for-react'
 import { fmtINR } from './formatters'
-import { barLabel, colLabel, pieLabel, funnelLabel, fmtMonthName } from './chartLabels'
+import { barLabel, colLabel, pieLabel, funnelLabel, fmtMonthName, AXIS_FONT, LEGEND_FONT } from './chartLabels'
 import { CHART } from '../theme'
 import type { ChartSpec } from '../pages/reportConfigs'
 
@@ -36,41 +36,41 @@ function aggregate(rows: Row[], spec: ChartSpec): Datum[] {
 const fmt = (v: number) => fmtINR(v)
 
 function optionFor(spec: ChartSpec, data: Datum[]) {
-  const axisVal = spec.money ? { axisLabel: { formatter: fmt } } : {}
-  const tt = spec.money ? { valueFormatter: fmt } : {}
+  const axisVal = spec.money ? { axisLabel: { formatter: fmt, ...AXIS_FONT } } : { axisLabel: AXIS_FONT }
+  const tt = { textStyle: { fontSize: 14 }, ...(spec.money ? { valueFormatter: fmt } : {}) }
   const color = spec.color ?? CHART.palette[0]
 
   if (spec.kind === 'donut') {
     return {
       color: CHART.palette,
       tooltip: { trigger: 'item', ...tt },
-      legend: { type: 'scroll', bottom: 0, textStyle: { fontSize: 11 } },
-      series: [{ type: 'pie', radius: ['36%', '60%'], itemStyle: { borderRadius: 4, borderColor: '#fff', borderWidth: 2 }, label: pieLabel(spec.money), data }],
+      legend: { type: 'scroll', bottom: 0, textStyle: LEGEND_FONT },
+      series: [{ type: 'pie', radius: ['34%', '58%'], itemStyle: { borderRadius: 4, borderColor: '#fff', borderWidth: 2 }, label: pieLabel(spec.money), data }],
     }
   }
   if (spec.kind === 'funnel') {
     return {
       color: CHART.palette,
       tooltip: { trigger: 'item', ...tt },
-      series: [{ type: 'funnel', left: 8, right: 8, top: 10, bottom: 10, minSize: '18%', gap: 2, label: funnelLabel(spec.money), data }],
+      series: [{ type: 'funnel', left: 8, right: 8, top: 10, bottom: 10, minSize: '22%', gap: 2, label: funnelLabel(spec.money), data }],
     }
   }
   if (spec.kind === 'columns') {
     return {
-      grid: { left: 8, right: 16, top: 34, bottom: 24, containLabel: true },
+      grid: { left: 8, right: 16, top: 38, bottom: 24, containLabel: true },
       tooltip: { trigger: 'axis', ...tt },
-      xAxis: { type: 'category', data: data.map((d) => d.name), axisLabel: { fontSize: 10 } },
+      xAxis: { type: 'category', data: data.map((d) => d.name), axisLabel: AXIS_FONT },
       yAxis: { type: 'value', ...axisVal },
-      series: [{ type: 'bar', data: data.map((d) => d.value), label: colLabel(spec.money, data.length > 8 ? 90 : 0), itemStyle: { color, borderRadius: [4, 4, 0, 0] }, barMaxWidth: 26 }],
+      series: [{ type: 'bar', data: data.map((d) => d.value), label: colLabel(spec.money, data.length > 8 ? 90 : 0), itemStyle: { color, borderRadius: [4, 4, 0, 0] }, barMaxWidth: 30 }],
     }
   }
   // horizontal bar
   return {
-    grid: { left: 8, right: 76, top: 10, bottom: 8, containLabel: true },
+    grid: { left: 8, right: 92, top: 10, bottom: 8, containLabel: true },
     tooltip: { trigger: 'axis', ...tt },
     xAxis: { type: 'value', ...axisVal },
-    yAxis: { type: 'category', data: data.map((d) => d.name).reverse(), axisLabel: { fontSize: 11 } },
-    series: [{ type: 'bar', data: data.map((d) => d.value).reverse(), label: barLabel(spec.money), itemStyle: { color, borderRadius: [0, 4, 4, 0] }, barMaxWidth: 20 }],
+    yAxis: { type: 'category', data: data.map((d) => d.name).reverse(), axisLabel: AXIS_FONT },
+    series: [{ type: 'bar', data: data.map((d) => d.value).reverse(), label: barLabel(spec.money), itemStyle: { color, borderRadius: [0, 4, 4, 0] }, barMaxWidth: 24 }],
   }
 }
 
@@ -84,7 +84,7 @@ export default function ChartStrip({ rows, specs }: { rows: Row[]; specs: ChartS
       {charts.map(({ spec, data }, i) => (
         <Paper key={i} variant="outlined" sx={{ p: 2 }}>
           <Typography variant="subtitle2" sx={{ mb: 1 }}>{spec.title}</Typography>
-          <ReactECharts option={optionFor(spec, data)} style={{ height: 280 }} notMerge />
+          <ReactECharts option={optionFor(spec, data)} style={{ height: 300 }} notMerge />
         </Paper>
       ))}
     </Box>

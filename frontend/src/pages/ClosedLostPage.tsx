@@ -5,7 +5,7 @@ import ReportShell from '../components/ReportShell'
 import DataTable from '../components/DataTable'
 import KpiCard from '../components/KpiCard'
 import { REPORTS } from './reportConfigs'
-import { barLabel, colLabel, pieLabel, fmtMonthName } from '../components/chartLabels'
+import { barLabel, colLabel, pieLabel, fmtMonthName, AXIS_FONT, LEGEND_FONT } from '../components/chartLabels'
 import { useReport } from '../api/hooks'
 import { useReportFilters } from '../state/FiltersContext'
 import { fmtINR, fmtInt } from '../components/formatters'
@@ -38,10 +38,10 @@ function groupSum(rows: Row[], keyFn: (r: Row) => string): Datum[] {
 const inr = (v: number) => fmtINR(v)
 
 const hbar = (items: Datum[], color: string) => ({
-  grid: { left: 8, right: 76, top: 10, bottom: 8, containLabel: true },
+  grid: { left: 8, right: 92, top: 10, bottom: 8, containLabel: true },
   tooltip: { trigger: 'axis', valueFormatter: inr },
-  xAxis: { type: 'value', axisLabel: { formatter: inr } },
-  yAxis: { type: 'category', data: items.map((i) => i.name).reverse(), axisLabel: { fontSize: 11 } },
+  xAxis: { type: 'value', axisLabel: { formatter: inr, ...AXIS_FONT } },
+  yAxis: { type: 'category', data: items.map((i) => i.name).reverse(), axisLabel: AXIS_FONT },
   series: [{
     type: 'bar',
     data: items.map((i) => i.value).reverse(),
@@ -54,7 +54,7 @@ const hbar = (items: Datum[], color: string) => ({
 const donut = (items: Datum[]) => ({
   color: CHART.palette,
   tooltip: { trigger: 'item', valueFormatter: inr },
-  legend: { type: 'scroll', bottom: 0, textStyle: { fontSize: 11 } },
+  legend: { type: 'scroll', bottom: 0, textStyle: LEGEND_FONT },
   series: [{
     type: 'pie',
     radius: ['36%', '60%'],
@@ -66,10 +66,10 @@ const donut = (items: Datum[]) => ({
 })
 
 const columns = (items: Datum[]) => ({
-  grid: { left: 8, right: 16, top: 34, bottom: 24, containLabel: true },
+  grid: { left: 8, right: 16, top: 38, bottom: 24, containLabel: true },
   tooltip: { trigger: 'axis', valueFormatter: inr },
-  xAxis: { type: 'category', data: items.map((i) => fmtMonthName(i.name)), axisLabel: { fontSize: 10 } },
-  yAxis: { type: 'value', axisLabel: { formatter: inr } },
+  xAxis: { type: 'category', data: items.map((i) => fmtMonthName(i.name)), axisLabel: AXIS_FONT },
+  yAxis: { type: 'value', axisLabel: { formatter: inr, ...AXIS_FONT } },
   series: [{
     type: 'bar',
     data: items.map((i) => i.value),

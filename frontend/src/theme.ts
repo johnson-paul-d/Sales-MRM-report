@@ -45,7 +45,8 @@ export const theme = createTheme({
     h4: { fontWeight: 800, letterSpacing: -0.5 },
     h5: { fontWeight: 800, letterSpacing: -0.3 },
     h6: { fontWeight: 700 },
-    subtitle2: { fontWeight: 700 },
+    // Chart/section titles — projection-readable
+    subtitle2: { fontWeight: 700, fontSize: 15.5 },
     button: { textTransform: 'none', fontWeight: 600 },
   },
   components: {
@@ -59,8 +60,8 @@ export const theme = createTheme({
     },
     MuiTableCell: {
       styleOverrides: {
-        root: { borderColor: '#f2ece1' },
-        head: { fontWeight: 700, color: '#6b6257', backgroundColor: '#faf6ef', fontSize: 12, letterSpacing: 0.2 },
+        root: { borderColor: '#f2ece1', fontSize: 14.5 },
+        head: { fontWeight: 700, color: '#141414', backgroundColor: '#f5efe4', fontSize: 13.5, letterSpacing: 0.2 },
       },
     },
     MuiChip: { styleOverrides: { root: { fontWeight: 600 } } },

@@ -6,7 +6,7 @@ import KpiCard from '../components/KpiCard'
 import { useReport, useLeads } from '../api/hooks'
 import { useReportFilters } from '../state/FiltersContext'
 import { fmtINR, fmtInt } from '../components/formatters'
-import { barLabel, colLabel, pieLabel, fmtMonthName } from '../components/chartLabels'
+import { barLabel, colLabel, pieLabel, fmtMonthName, AXIS_FONT, LEGEND_FONT } from '../components/chartLabels'
 import { CHART } from '../theme'
 
 interface TrackerRow {
@@ -54,7 +54,7 @@ export default function OverviewPage() {
       e.won += N(r.closed_won_value); e.lost += N(r.closed_lost_value); e.dropped += N(r.dropped_value)
       m.set(r.year_month, e)
     }
-    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(-12)
+    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(-8)
   }, [rows])
 
   const topReps = useMemo(() => {
@@ -76,23 +76,29 @@ export default function OverviewPage() {
 
   const busy = tracker.isLoading || leads.isLoading || lost.isLoading
 
+  // Grouped monthly bars: label only values >= 1 Cr so the chart stays legible.
+  const trendLabel = {
+    ...colLabel(true, 90),
+    fontSize: 12,
+    formatter: (p: any) => (Number(p.value) >= 1e7 ? fmtINR(p.value) : ''),
+  }
   const outcomeTrend = {
-    grid: { left: 8, right: 16, top: 30, bottom: 24, containLabel: true },
+    grid: { left: 8, right: 16, top: 60, bottom: 24, containLabel: true },
     tooltip: { trigger: 'axis', valueFormatter: inr },
-    legend: { top: 0, textStyle: { fontSize: 11 } },
-    xAxis: { type: 'category', data: byMonth.map((m) => fmtMonthName(m[0])), axisLabel: { fontSize: 10 } },
-    yAxis: { type: 'value', axisLabel: { formatter: inr } },
+    legend: { top: 0, textStyle: LEGEND_FONT },
+    xAxis: { type: 'category', data: byMonth.map((m) => fmtMonthName(m[0])), axisLabel: AXIS_FONT },
+    yAxis: { type: 'value', axisLabel: { formatter: inr, ...AXIS_FONT } },
     series: [
-      { name: 'Won', type: 'bar', data: byMonth.map((m) => m[1].won), label: colLabel(true, 90), itemStyle: { color: CHART.won, borderRadius: [3, 3, 0, 0] }, barMaxWidth: 15 },
-      { name: 'Lost', type: 'bar', data: byMonth.map((m) => m[1].lost), label: colLabel(true, 90), itemStyle: { color: CHART.lost, borderRadius: [3, 3, 0, 0] }, barMaxWidth: 15 },
-      { name: 'Dropped', type: 'bar', data: byMonth.map((m) => m[1].dropped), label: colLabel(true, 90), itemStyle: { color: CHART.dropped, borderRadius: [3, 3, 0, 0] }, barMaxWidth: 15 },
+      { name: 'Won', type: 'bar', data: byMonth.map((m) => m[1].won), label: trendLabel, itemStyle: { color: CHART.won, borderRadius: [3, 3, 0, 0] }, barMaxWidth: 18 },
+      { name: 'Lost', type: 'bar', data: byMonth.map((m) => m[1].lost), label: trendLabel, itemStyle: { color: CHART.lost, borderRadius: [3, 3, 0, 0] }, barMaxWidth: 18 },
+      { name: 'Dropped', type: 'bar', data: byMonth.map((m) => m[1].dropped), label: trendLabel, itemStyle: { color: CHART.dropped, borderRadius: [3, 3, 0, 0] }, barMaxWidth: 18 },
     ],
   }
   const pipelineChart = {
-    grid: { left: 8, right: 16, top: 10, bottom: 24, containLabel: true },
+    grid: { left: 8, right: 16, top: 34, bottom: 24, containLabel: true },
     tooltip: { trigger: 'axis', valueFormatter: inr },
-    xAxis: { type: 'category', data: ['Open Quotes', 'New Quotes', 'Closed Won'] },
-    yAxis: { type: 'value', axisLabel: { formatter: inr } },
+    xAxis: { type: 'category', data: ['Open Quotes', 'New Quotes', 'Closed Won'], axisLabel: AXIS_FONT },
+    yAxis: { type: 'value', axisLabel: { formatter: inr, ...AXIS_FONT } },
     series: [{
       type: 'bar', barMaxWidth: 56, label: colLabel(true),
       data: [
@@ -103,16 +109,16 @@ export default function OverviewPage() {
     }],
   }
   const repsChart = {
-    grid: { left: 8, right: 24, top: 10, bottom: 8, containLabel: true },
+    grid: { left: 8, right: 92, top: 10, bottom: 8, containLabel: true },
     tooltip: { trigger: 'axis', valueFormatter: inr },
-    xAxis: { type: 'value', axisLabel: { formatter: inr } },
-    yAxis: { type: 'category', data: topReps.map((t) => t.name).reverse(), axisLabel: { fontSize: 11 } },
+    xAxis: { type: 'value', axisLabel: { formatter: inr, ...AXIS_FONT } },
+    yAxis: { type: 'category', data: topReps.map((t) => t.name).reverse(), axisLabel: AXIS_FONT },
     series: [{ type: 'bar', data: topReps.map((t) => t.value).reverse(), label: barLabel(true), itemStyle: { color: CHART.won, borderRadius: [0, 4, 4, 0] }, barMaxWidth: 18 }],
   }
   const reasonChart = {
     color: CHART.palette,
     tooltip: { trigger: 'item', valueFormatter: inr },
-    legend: { type: 'scroll', bottom: 0, textStyle: { fontSize: 11 } },
+    legend: { type: 'scroll', bottom: 0, textStyle: LEGEND_FONT },
     series: [{ type: 'pie', radius: ['36%', '60%'], itemStyle: { borderRadius: 4, borderColor: '#fff', borderWidth: 2 }, label: pieLabel(true), data: lossReasons }],
   }
 

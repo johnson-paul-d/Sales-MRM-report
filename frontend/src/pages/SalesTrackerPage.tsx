@@ -7,7 +7,7 @@ import SalesTrackerTree from '../components/SalesTrackerTree'
 import DataTable from '../components/DataTable'
 import KpiCard from '../components/KpiCard'
 import { REPORTS, col } from './reportConfigs'
-import { colLabel } from '../components/chartLabels'
+import { colLabel, AXIS_FONT } from '../components/chartLabels'
 import { useReport, useNewOpportunity } from '../api/hooks'
 import { useReportFilters } from '../state/FiltersContext'
 import { fmtINR, fmtInt } from '../components/formatters'
@@ -93,8 +93,8 @@ export default function SalesTrackerPage() {
   const wonChart = {
     grid: { left: 8, right: 16, top: 20, bottom: 70, containLabel: true },
     tooltip: { trigger: 'axis', valueFormatter: (v: number) => fmtINR(v) },
-    xAxis: { type: 'category', data: topWon.map((t) => t.user_name), axisLabel: { rotate: 35, fontSize: 10 } },
-    yAxis: { type: 'value', axisLabel: { formatter: (v: number) => fmtINR(v) } },
+    xAxis: { type: 'category', data: topWon.map((t) => t.user_name), axisLabel: { rotate: 35, ...AXIS_FONT } },
+    yAxis: { type: 'value', axisLabel: { formatter: (v: number) => fmtINR(v), ...AXIS_FONT } },
     series: [{ type: 'bar', name: 'Closed Won', data: topWon.map((t) => t.closed_won_value), label: colLabel(true), itemStyle: { color: CHART.won, borderRadius: [4, 4, 0, 0] } }],
   }
   // Same visual as the New Opportunity page (the PBI report repeats it here):
@@ -110,8 +110,8 @@ export default function SalesTrackerPage() {
           (u?.min_construction_stage ? `<br/>Min Construction Stage: ${u.min_construction_stage}` : '')
       },
     },
-    xAxis: { type: 'category', data: byUser.map((u) => u.user_name), axisLabel: { rotate: 35, fontSize: 10 } },
-    yAxis: { type: 'value', minInterval: 1 },
+    xAxis: { type: 'category', data: byUser.map((u) => u.user_name), axisLabel: { rotate: 35, ...AXIS_FONT } },
+    yAxis: { type: 'value', minInterval: 1, axisLabel: AXIS_FONT },
     series: [{ type: 'bar', name: 'New Opportunities', data: byUser.map((u) => u.count), label: colLabel(false), itemStyle: { color: CHART.open, borderRadius: [4, 4, 0, 0] } }],
   }
 

@@ -22,15 +22,15 @@ export default function KpiCard({ label, value, sub, color = '#9B2423' }: Props)
       <CardContent sx={{ py: 1.75, pl: 2.5, '&:last-child': { pb: 1.75 } }}>
         <Typography
           variant="caption"
-          sx={{ textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 700, color: 'text.secondary' }}
+          sx={{ textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 700, color: 'text.secondary', fontSize: 12.5 }}
         >
           {label}
         </Typography>
-        <Typography sx={{ fontSize: 26, fontWeight: 800, color: 'text.primary', mt: 0.25, lineHeight: 1.15 }}>
+        <Typography sx={{ fontSize: 30, fontWeight: 800, color: 'text.primary', mt: 0.25, lineHeight: 1.15 }}>
           {value}
         </Typography>
         {sub && (
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25, fontSize: 13.5 }}>
             {sub}
           </Typography>
         )}

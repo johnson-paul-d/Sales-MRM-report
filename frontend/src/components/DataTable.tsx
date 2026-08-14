@@ -32,13 +32,22 @@ export default function DataTable({ rows, columns, loading, height = 'calc(100vh
       className="ag-theme-quartz"
       sx={{
         width: '100%', height, mt: 1,
-        '& .ag-floating-bottom .ag-cell': { fontWeight: 700 },
+        // Projection-readable: bigger, darker text; bold high-contrast headers.
+        '--ag-font-size': '14.5px',
+        '--ag-data-color': '#1a1a1a',
+        '--ag-header-foreground-color': '#141414',
+        '--ag-header-background-color': '#f5efe4',
+        '& .ag-header-cell-text': { fontWeight: 700, fontSize: 13.5 },
+        '& .ag-floating-bottom .ag-cell': { fontWeight: 800, fontSize: 15 },
+        '& .ag-floating-bottom': { borderTop: '2px solid #9B2423', backgroundColor: '#faf6ef' },
       }}
     >
       <AgGridReact
         rowData={rows}
         columnDefs={columns}
         defaultColDef={{ sortable: true, filter: true, resizable: true, minWidth: 110, flex: 1 }}
+        rowHeight={40}
+        headerHeight={44}
         pagination
         paginationPageSize={50}
         paginationPageSizeSelector={[25, 50, 100, 200]}

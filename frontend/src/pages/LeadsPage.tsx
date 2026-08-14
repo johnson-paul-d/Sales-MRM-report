@@ -6,7 +6,7 @@ import ReportShell from '../components/ReportShell'
 import DataTable from '../components/DataTable'
 import KpiCard from '../components/KpiCard'
 import { col } from './reportConfigs'
-import { pieLabel } from '../components/chartLabels'
+import { pieLabel, LEGEND_FONT } from '../components/chartLabels'
 import { useLeads } from '../api/hooks'
 import { useReportFilters } from '../state/FiltersContext'
 import { fmtInt } from '../components/formatters'
@@ -59,7 +59,7 @@ export default function LeadsPage() {
   const donutOption = {
     color: CHART.palette,
     tooltip: { trigger: 'item' },
-    legend: { type: 'scroll', bottom: 0, textStyle: { fontSize: 11 } },
+    legend: { type: 'scroll', bottom: 0, textStyle: LEGEND_FONT },
     series: [
       {
         type: 'pie',
