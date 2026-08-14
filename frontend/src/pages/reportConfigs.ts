@@ -1,5 +1,6 @@
 import type { ColDef } from 'ag-grid-community'
 import { fmtINR, fmtInt, fmtDate } from '../components/formatters'
+import { fmtMonthName } from '../components/chartLabels'
 import { CHART } from '../theme'
 
 type Kind = 'text' | 'int' | 'inr' | 'date'
@@ -244,7 +245,7 @@ export const REPORTS: Record<string, ReportConfig> = {
     path: 'six-month-plan',
     columns: [
       // Rows then Values exactly as the pbix Six Months Booking Plan matrix
-      col('close_month', 'Month'),
+      col('close_month', 'Month', 'text', { valueFormatter: (p) => fmtMonthName(p.value, true) }),
       col('user_name', 'User Name'),
       col('opportunity_name', 'Opp name', 'text', { flex: 2 }),
       col('product_name', 'Product'),

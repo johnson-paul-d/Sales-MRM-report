@@ -7,6 +7,7 @@ import SalesTrackerTree from '../components/SalesTrackerTree'
 import DataTable from '../components/DataTable'
 import KpiCard from '../components/KpiCard'
 import { REPORTS, col } from './reportConfigs'
+import { colLabel } from '../components/chartLabels'
 import { useReport, useNewOpportunity } from '../api/hooks'
 import { useReportFilters } from '../state/FiltersContext'
 import { fmtINR, fmtInt } from '../components/formatters'
@@ -94,7 +95,7 @@ export default function SalesTrackerPage() {
     tooltip: { trigger: 'axis', valueFormatter: (v: number) => fmtINR(v) },
     xAxis: { type: 'category', data: topWon.map((t) => t.user_name), axisLabel: { rotate: 35, fontSize: 10 } },
     yAxis: { type: 'value', axisLabel: { formatter: (v: number) => fmtINR(v) } },
-    series: [{ type: 'bar', name: 'Closed Won', data: topWon.map((t) => t.closed_won_value), itemStyle: { color: CHART.won, borderRadius: [4, 4, 0, 0] } }],
+    series: [{ type: 'bar', name: 'Closed Won', data: topWon.map((t) => t.closed_won_value), label: colLabel(true), itemStyle: { color: CHART.won, borderRadius: [4, 4, 0, 0] } }],
   }
   // Same visual as the New Opportunity page (the PBI report repeats it here):
   // opportunities created last month by salesperson, with Min construction-stage tooltip.
@@ -111,7 +112,7 @@ export default function SalesTrackerPage() {
     },
     xAxis: { type: 'category', data: byUser.map((u) => u.user_name), axisLabel: { rotate: 35, fontSize: 10 } },
     yAxis: { type: 'value', minInterval: 1 },
-    series: [{ type: 'bar', name: 'New Opportunities', data: byUser.map((u) => u.count), itemStyle: { color: CHART.open, borderRadius: [4, 4, 0, 0] } }],
+    series: [{ type: 'bar', name: 'New Opportunities', data: byUser.map((u) => u.count), label: colLabel(false), itemStyle: { color: CHART.open, borderRadius: [4, 4, 0, 0] } }],
   }
 
   return (

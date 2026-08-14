@@ -5,6 +5,7 @@ import ReportShell from '../components/ReportShell'
 import DataTable from '../components/DataTable'
 import KpiCard from '../components/KpiCard'
 import { REPORTS } from './reportConfigs'
+import { barLabel, colLabel, pieLabel, fmtMonthName } from '../components/chartLabels'
 import { useReport } from '../api/hooks'
 import { useReportFilters } from '../state/FiltersContext'
 import { fmtINR, fmtInt } from '../components/formatters'
@@ -37,13 +38,14 @@ function groupSum(rows: Row[], keyFn: (r: Row) => string): Datum[] {
 const inr = (v: number) => fmtINR(v)
 
 const hbar = (items: Datum[], color: string) => ({
-  grid: { left: 8, right: 24, top: 10, bottom: 8, containLabel: true },
+  grid: { left: 8, right: 76, top: 10, bottom: 8, containLabel: true },
   tooltip: { trigger: 'axis', valueFormatter: inr },
   xAxis: { type: 'value', axisLabel: { formatter: inr } },
   yAxis: { type: 'category', data: items.map((i) => i.name).reverse(), axisLabel: { fontSize: 11 } },
   series: [{
     type: 'bar',
     data: items.map((i) => i.value).reverse(),
+    label: barLabel(true),
     itemStyle: { color, borderRadius: [0, 4, 4, 0] },
     barMaxWidth: 22,
   }],
@@ -55,22 +57,23 @@ const donut = (items: Datum[]) => ({
   legend: { type: 'scroll', bottom: 0, textStyle: { fontSize: 11 } },
   series: [{
     type: 'pie',
-    radius: ['42%', '70%'],
+    radius: ['36%', '60%'],
     avoidLabelOverlap: true,
     itemStyle: { borderRadius: 4, borderColor: '#fff', borderWidth: 2 },
-    label: { show: false },
+    label: pieLabel(true),
     data: items,
   }],
 })
 
 const columns = (items: Datum[]) => ({
-  grid: { left: 8, right: 16, top: 16, bottom: 24, containLabel: true },
+  grid: { left: 8, right: 16, top: 34, bottom: 24, containLabel: true },
   tooltip: { trigger: 'axis', valueFormatter: inr },
-  xAxis: { type: 'category', data: items.map((i) => i.name), axisLabel: { fontSize: 10 } },
+  xAxis: { type: 'category', data: items.map((i) => fmtMonthName(i.name)), axisLabel: { fontSize: 10 } },
   yAxis: { type: 'value', axisLabel: { formatter: inr } },
   series: [{
     type: 'bar',
     data: items.map((i) => i.value),
+    label: colLabel(true, items.length > 8 ? 90 : 0),
     itemStyle: { color: CHART.lost, borderRadius: [4, 4, 0, 0] },
     barMaxWidth: 28,
   }],

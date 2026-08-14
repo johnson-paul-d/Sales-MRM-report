@@ -1,5 +1,8 @@
-import { useMemo } from 'react'
-import { Box, Paper, Typography, CircularProgress, Alert } from '@mui/material'
+import { useMemo, useState } from 'react'
+import {
+  Box, Paper, Typography, CircularProgress, Alert, Chip, FormControl, InputLabel,
+  MenuItem, OutlinedInput, Select,
+} from '@mui/material'
 import type { ColDef } from 'ag-grid-community'
 import ReportShell from '../components/ReportShell'
 import DataTable from '../components/DataTable'
@@ -52,7 +55,18 @@ export default function OpenFunnelPage() {
   const cfg = REPORTS['open-funnel']
   const { filters } = useReportFilters()
   const { data, isLoading, error } = useOpenFunnel(filters)
-  const rows = data?.rows ?? []
+  const allRows = data?.rows ?? []
+
+  // Stage filter (client-side, same pattern as ReportTablePage)
+  const [stages, setStages] = useState<string[]>([])
+  const stageOptions = useMemo(
+    () => [...new Set(allRows.map((r: any) => r.stage_name).filter(Boolean))].sort() as string[],
+    [allRows],
+  )
+  const rows = useMemo(
+    () => (stages.length ? allRows.filter((r: any) => stages.includes(r.stage_name)) : allRows),
+    [allRows, stages],
+  )
 
   // Target vs achieved: Amount = the owner's open-funnel value under current filters
   const targetRows = useMemo(() => {
@@ -101,6 +115,27 @@ export default function OpenFunnelPage() {
         <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}><CircularProgress /></Box>
       ) : (
         <>
+          <Box sx={{ mb: 1.5 }}>
+            <FormControl size="small" sx={{ minWidth: 240 }}>
+              <InputLabel id="of-stage">Stage</InputLabel>
+              <Select
+                labelId="of-stage"
+                multiple
+                value={stages}
+                onChange={(e) => setStages(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)}
+                input={<OutlinedInput label="Stage" />}
+                renderValue={(sel) => (
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                    {sel.map((s) => <Chip key={s} label={s} size="small" />)}
+                  </Box>
+                )}
+              >
+                {stageOptions.map((s) => (
+                  <MenuItem key={s} value={s}>{s}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Box>
           {cfg.charts && rows.length > 0 && <ChartStrip rows={rows} specs={cfg.charts} />}
 
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '380px 1fr' }, gap: 2, mb: 2 }}>

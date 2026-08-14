@@ -5,6 +5,7 @@ import ReportShell from '../components/ReportShell'
 import DataTable from '../components/DataTable'
 import KpiCard from '../components/KpiCard'
 import { col } from './reportConfigs'
+import { colLabel } from '../components/chartLabels'
 import { useNewOpportunity } from '../api/hooks'
 import { useReportFilters } from '../state/FiltersContext'
 import { fmtInt } from '../components/formatters'
@@ -47,6 +48,7 @@ export default function NewOpportunityPage() {
         type: 'bar',
         name: 'New Opportunities',
         data: byUser.map((u) => u.count),
+        label: colLabel(false),
         itemStyle: { color: CHART.open, borderRadius: [4, 4, 0, 0] },
       },
     ],

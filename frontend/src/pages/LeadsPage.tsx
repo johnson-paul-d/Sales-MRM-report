@@ -6,6 +6,7 @@ import ReportShell from '../components/ReportShell'
 import DataTable from '../components/DataTable'
 import KpiCard from '../components/KpiCard'
 import { col } from './reportConfigs'
+import { pieLabel } from '../components/chartLabels'
 import { useLeads } from '../api/hooks'
 import { useReportFilters } from '../state/FiltersContext'
 import { fmtInt } from '../components/formatters'
@@ -62,10 +63,10 @@ export default function LeadsPage() {
     series: [
       {
         type: 'pie',
-        radius: ['42%', '70%'],
+        radius: ['36%', '60%'],
         avoidLabelOverlap: true,
         itemStyle: { borderRadius: 4, borderColor: '#fff', borderWidth: 2 },
-        label: { show: false },
+        label: pieLabel(false),
         data: sources.map((s) => ({ name: s.lead_source, value: Number(s.total_leads) })),
       },
     ],
