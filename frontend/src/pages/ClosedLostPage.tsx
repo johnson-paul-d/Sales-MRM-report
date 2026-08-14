@@ -6,6 +6,7 @@ import DataTable from '../components/DataTable'
 import KpiCard from '../components/KpiCard'
 import { REPORTS } from './reportConfigs'
 import { barLabel, colLabel, pieLabel, fmtMonthName, AXIS_FONT, LEGEND_FONT } from '../components/chartLabels'
+import { gradV, gradH, DEPTH, BAR_EMPHASIS, PIE_EMPHASIS, ANIM, barWidth } from '../components/chartStyle'
 import { useReport } from '../api/hooks'
 import { useReportFilters } from '../state/FiltersContext'
 import { fmtINR, fmtInt } from '../components/formatters'
@@ -38,6 +39,7 @@ function groupSum(rows: Row[], keyFn: (r: Row) => string): Datum[] {
 const inr = (v: number) => fmtINR(v)
 
 const hbar = (items: Datum[], color: string) => ({
+  ...ANIM,
   grid: { left: 8, right: 92, top: 10, bottom: 8, containLabel: true },
   tooltip: { trigger: 'axis', valueFormatter: inr },
   xAxis: { type: 'value', axisLabel: { formatter: inr, ...AXIS_FONT } },
@@ -46,27 +48,32 @@ const hbar = (items: Datum[], color: string) => ({
     type: 'bar',
     data: items.map((i) => i.value).reverse(),
     label: barLabel(true),
-    itemStyle: { color, borderRadius: [0, 4, 4, 0] },
-    barMaxWidth: 22,
+    itemStyle: { color: gradH(color), borderRadius: [0, 5, 5, 0], ...DEPTH },
+    emphasis: BAR_EMPHASIS,
+    barMaxWidth: barWidth(items.length),
   }],
 })
 
 const donut = (items: Datum[]) => ({
+  ...ANIM,
   color: CHART.palette,
   tooltip: { trigger: 'item', valueFormatter: inr },
   legend: { type: 'scroll', bottom: 0, textStyle: LEGEND_FONT },
   series: [{
     type: 'pie',
-    radius: ['36%', '60%'],
+    radius: ['34%', '58%'],
     avoidLabelOverlap: true,
-    itemStyle: { borderRadius: 4, borderColor: '#fff', borderWidth: 2 },
+    itemStyle: { borderRadius: 5, borderColor: '#fff', borderWidth: 2, ...DEPTH },
+    emphasis: PIE_EMPHASIS,
     label: pieLabel(true),
     data: items,
   }],
 })
 
 const columns = (items: Datum[]) => ({
-  grid: { left: 8, right: 16, top: 38, bottom: 24, containLabel: true },
+  ...ANIM,
+  // Rotated value labels need full headroom above the tallest column.
+  grid: { left: 8, right: 16, top: items.length > 8 ? 92 : 38, bottom: 24, containLabel: true },
   tooltip: { trigger: 'axis', valueFormatter: inr },
   xAxis: { type: 'category', data: items.map((i) => fmtMonthName(i.name)), axisLabel: AXIS_FONT },
   yAxis: { type: 'value', axisLabel: { formatter: inr, ...AXIS_FONT } },
@@ -74,8 +81,9 @@ const columns = (items: Datum[]) => ({
     type: 'bar',
     data: items.map((i) => i.value),
     label: colLabel(true, items.length > 8 ? 90 : 0),
-    itemStyle: { color: CHART.lost, borderRadius: [4, 4, 0, 0] },
-    barMaxWidth: 28,
+    itemStyle: { color: gradV(CHART.lost), borderRadius: [5, 5, 0, 0], ...DEPTH },
+    emphasis: BAR_EMPHASIS,
+    barMaxWidth: barWidth(items.length),
   }],
 })
 

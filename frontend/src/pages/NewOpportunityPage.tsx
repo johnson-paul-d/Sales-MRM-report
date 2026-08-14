@@ -6,6 +6,7 @@ import DataTable from '../components/DataTable'
 import KpiCard from '../components/KpiCard'
 import { col } from './reportConfigs'
 import { colLabel, AXIS_FONT } from '../components/chartLabels'
+import { gradV, DEPTH, BAR_EMPHASIS, ANIM, barWidth } from '../components/chartStyle'
 import { useNewOpportunity } from '../api/hooks'
 import { useReportFilters } from '../state/FiltersContext'
 import { fmtInt } from '../components/formatters'
@@ -31,7 +32,8 @@ export default function NewOpportunityPage() {
   const byUser = data?.by_user ?? []
   const total = byUser.reduce((s, u) => s + u.count, 0)
   const chartOption = {
-    grid: { left: 8, right: 16, top: 20, bottom: 70, containLabel: true },
+    ...ANIM,
+    grid: { left: 8, right: 16, top: 34, bottom: 70, containLabel: true },
     tooltip: {
       trigger: 'axis',
       // PBI tooltip: Min of building_construction_stage__c
@@ -49,7 +51,9 @@ export default function NewOpportunityPage() {
         name: 'New Opportunities',
         data: byUser.map((u) => u.count),
         label: colLabel(false),
-        itemStyle: { color: CHART.open, borderRadius: [4, 4, 0, 0] },
+        itemStyle: { color: gradV(CHART.open), borderRadius: [5, 5, 0, 0], ...DEPTH },
+        emphasis: BAR_EMPHASIS,
+        barMaxWidth: barWidth(byUser.length),
       },
     ],
   }

@@ -7,6 +7,7 @@ import { useReport, useLeads } from '../api/hooks'
 import { useReportFilters } from '../state/FiltersContext'
 import { fmtINR, fmtInt } from '../components/formatters'
 import { barLabel, colLabel, pieLabel, fmtMonthName, AXIS_FONT, LEGEND_FONT } from '../components/chartLabels'
+import { gradV, gradH, DEPTH, BAR_EMPHASIS, PIE_EMPHASIS, ANIM, barWidth } from '../components/chartStyle'
 import { CHART } from '../theme'
 
 interface TrackerRow {
@@ -54,7 +55,11 @@ export default function OverviewPage() {
       e.won += N(r.closed_won_value); e.lost += N(r.closed_lost_value); e.dropped += N(r.dropped_value)
       m.set(r.year_month, e)
     }
-    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(-8)
+    // Only months up to the current one -- close dates extend into the future,
+    // and "recent trend" means the trailing 8 real months, not empty future ones.
+    const cur = new Date().toISOString().slice(0, 7)
+    return [...m.entries()].filter(([ym]) => ym <= cur)
+      .sort((a, b) => a[0].localeCompare(b[0])).slice(-8)
   }, [rows])
 
   const topReps = useMemo(() => {
@@ -83,43 +88,48 @@ export default function OverviewPage() {
     formatter: (p: any) => (Number(p.value) >= 1e7 ? fmtINR(p.value) : ''),
   }
   const outcomeTrend = {
-    grid: { left: 8, right: 16, top: 60, bottom: 24, containLabel: true },
+    ...ANIM,
+    // Rotated value labels need full headroom above the tallest bar.
+    grid: { left: 8, right: 16, top: 96, bottom: 24, containLabel: true },
     tooltip: { trigger: 'axis', valueFormatter: inr },
     legend: { top: 0, textStyle: LEGEND_FONT },
     xAxis: { type: 'category', data: byMonth.map((m) => fmtMonthName(m[0])), axisLabel: AXIS_FONT },
     yAxis: { type: 'value', axisLabel: { formatter: inr, ...AXIS_FONT } },
     series: [
-      { name: 'Won', type: 'bar', data: byMonth.map((m) => m[1].won), label: trendLabel, itemStyle: { color: CHART.won, borderRadius: [3, 3, 0, 0] }, barMaxWidth: 18 },
-      { name: 'Lost', type: 'bar', data: byMonth.map((m) => m[1].lost), label: trendLabel, itemStyle: { color: CHART.lost, borderRadius: [3, 3, 0, 0] }, barMaxWidth: 18 },
-      { name: 'Dropped', type: 'bar', data: byMonth.map((m) => m[1].dropped), label: trendLabel, itemStyle: { color: CHART.dropped, borderRadius: [3, 3, 0, 0] }, barMaxWidth: 18 },
+      { name: 'Won', type: 'bar', data: byMonth.map((m) => m[1].won), label: trendLabel, itemStyle: { color: gradV(CHART.won), borderRadius: [4, 4, 0, 0], ...DEPTH }, emphasis: BAR_EMPHASIS, barMaxWidth: 20 },
+      { name: 'Lost', type: 'bar', data: byMonth.map((m) => m[1].lost), label: trendLabel, itemStyle: { color: gradV(CHART.lost), borderRadius: [4, 4, 0, 0], ...DEPTH }, emphasis: BAR_EMPHASIS, barMaxWidth: 20 },
+      { name: 'Dropped', type: 'bar', data: byMonth.map((m) => m[1].dropped), label: trendLabel, itemStyle: { color: gradV(CHART.dropped), borderRadius: [4, 4, 0, 0], ...DEPTH }, emphasis: BAR_EMPHASIS, barMaxWidth: 20 },
     ],
   }
   const pipelineChart = {
+    ...ANIM,
     grid: { left: 8, right: 16, top: 34, bottom: 24, containLabel: true },
     tooltip: { trigger: 'axis', valueFormatter: inr },
     xAxis: { type: 'category', data: ['Open Quotes', 'New Quotes', 'Closed Won'], axisLabel: AXIS_FONT },
     yAxis: { type: 'value', axisLabel: { formatter: inr, ...AXIS_FONT } },
     series: [{
-      type: 'bar', barMaxWidth: 56, label: colLabel(true),
+      type: 'bar', barMaxWidth: barWidth(3), label: colLabel(true), emphasis: BAR_EMPHASIS,
       data: [
-        { value: totals.open, itemStyle: { color: CHART.open, borderRadius: [4, 4, 0, 0] } },
-        { value: totals.live, itemStyle: { color: CHART.live, borderRadius: [4, 4, 0, 0] } },
-        { value: totals.won, itemStyle: { color: CHART.won, borderRadius: [4, 4, 0, 0] } },
+        { value: totals.open, itemStyle: { color: gradV(CHART.open), borderRadius: [5, 5, 0, 0], ...DEPTH } },
+        { value: totals.live, itemStyle: { color: gradV(CHART.live), borderRadius: [5, 5, 0, 0], ...DEPTH } },
+        { value: totals.won, itemStyle: { color: gradV(CHART.won), borderRadius: [5, 5, 0, 0], ...DEPTH } },
       ],
     }],
   }
   const repsChart = {
+    ...ANIM,
     grid: { left: 8, right: 92, top: 10, bottom: 8, containLabel: true },
     tooltip: { trigger: 'axis', valueFormatter: inr },
     xAxis: { type: 'value', axisLabel: { formatter: inr, ...AXIS_FONT } },
     yAxis: { type: 'category', data: topReps.map((t) => t.name).reverse(), axisLabel: AXIS_FONT },
-    series: [{ type: 'bar', data: topReps.map((t) => t.value).reverse(), label: barLabel(true), itemStyle: { color: CHART.won, borderRadius: [0, 4, 4, 0] }, barMaxWidth: 18 }],
+    series: [{ type: 'bar', data: topReps.map((t) => t.value).reverse(), label: barLabel(true), itemStyle: { color: gradH(CHART.won), borderRadius: [0, 5, 5, 0], ...DEPTH }, emphasis: BAR_EMPHASIS, barMaxWidth: barWidth(topReps.length) }],
   }
   const reasonChart = {
+    ...ANIM,
     color: CHART.palette,
     tooltip: { trigger: 'item', valueFormatter: inr },
     legend: { type: 'scroll', bottom: 0, textStyle: LEGEND_FONT },
-    series: [{ type: 'pie', radius: ['36%', '60%'], itemStyle: { borderRadius: 4, borderColor: '#fff', borderWidth: 2 }, label: pieLabel(true), data: lossReasons }],
+    series: [{ type: 'pie', radius: ['34%', '58%'], itemStyle: { borderRadius: 5, borderColor: '#fff', borderWidth: 2, ...DEPTH }, emphasis: PIE_EMPHASIS, label: pieLabel(true), data: lossReasons }],
   }
 
   return (
@@ -143,7 +153,7 @@ export default function OverviewPage() {
 
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '2fr 1fr' }, gap: 2, mb: 2 }}>
             <Paper variant="outlined" sx={{ p: 2 }}>
-              <Typography variant="subtitle2" sx={{ mb: 1 }}>Won · Lost · Dropped — last 12 months</Typography>
+              <Typography variant="subtitle2" sx={{ mb: 1 }}>Won · Lost · Dropped — last 8 months</Typography>
               <ReactECharts option={outcomeTrend} style={{ height: 320 }} notMerge />
             </Paper>
             <Paper variant="outlined" sx={{ p: 2 }}>

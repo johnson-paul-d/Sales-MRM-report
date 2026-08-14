@@ -3,6 +3,7 @@ import { Box, Paper, Typography } from '@mui/material'
 import ReactECharts from 'echarts-for-react'
 import { fmtINR } from './formatters'
 import { barLabel, colLabel, pieLabel, funnelLabel, fmtMonthName, AXIS_FONT, LEGEND_FONT } from './chartLabels'
+import { gradV, gradH, DEPTH, BAR_EMPHASIS, PIE_EMPHASIS, ANIM, barWidth, CARD_HOVER } from './chartStyle'
 import { CHART } from '../theme'
 import type { ChartSpec } from '../pages/reportConfigs'
 
@@ -42,35 +43,63 @@ function optionFor(spec: ChartSpec, data: Datum[]) {
 
   if (spec.kind === 'donut') {
     return {
+      ...ANIM,
       color: CHART.palette,
       tooltip: { trigger: 'item', ...tt },
       legend: { type: 'scroll', bottom: 0, textStyle: LEGEND_FONT },
-      series: [{ type: 'pie', radius: ['34%', '58%'], itemStyle: { borderRadius: 4, borderColor: '#fff', borderWidth: 2 }, label: pieLabel(spec.money), data }],
+      series: [{
+        type: 'pie', radius: ['34%', '58%'],
+        itemStyle: { borderRadius: 5, borderColor: '#fff', borderWidth: 2, ...DEPTH },
+        emphasis: PIE_EMPHASIS,
+        label: pieLabel(spec.money), data,
+      }],
     }
   }
   if (spec.kind === 'funnel') {
     return {
+      ...ANIM,
       color: CHART.palette,
       tooltip: { trigger: 'item', ...tt },
-      series: [{ type: 'funnel', left: 8, right: 8, top: 10, bottom: 10, minSize: '22%', gap: 2, label: funnelLabel(spec.money), data }],
+      series: [{
+        type: 'funnel', left: 8, right: 8, top: 10, bottom: 10, minSize: '22%', gap: 3,
+        itemStyle: { borderRadius: 3, ...DEPTH },
+        emphasis: BAR_EMPHASIS,
+        label: funnelLabel(spec.money), data,
+      }],
     }
   }
   if (spec.kind === 'columns') {
+    const rotated = data.length > 8
     return {
-      grid: { left: 8, right: 16, top: 38, bottom: 24, containLabel: true },
+      ...ANIM,
+      // Rotated value labels stand ~80px tall -- reserve full headroom so they never clip.
+      grid: { left: 8, right: 16, top: rotated ? 92 : 38, bottom: 24, containLabel: true },
       tooltip: { trigger: 'axis', ...tt },
       xAxis: { type: 'category', data: data.map((d) => d.name), axisLabel: AXIS_FONT },
       yAxis: { type: 'value', ...axisVal },
-      series: [{ type: 'bar', data: data.map((d) => d.value), label: colLabel(spec.money, data.length > 8 ? 90 : 0), itemStyle: { color, borderRadius: [4, 4, 0, 0] }, barMaxWidth: 30 }],
+      series: [{
+        type: 'bar', data: data.map((d) => d.value),
+        label: colLabel(spec.money, rotated ? 90 : 0),
+        itemStyle: { color: gradV(color), borderRadius: [5, 5, 0, 0], ...DEPTH },
+        emphasis: BAR_EMPHASIS,
+        barMaxWidth: barWidth(data.length),
+      }],
     }
   }
   // horizontal bar
   return {
+    ...ANIM,
     grid: { left: 8, right: 92, top: 10, bottom: 8, containLabel: true },
     tooltip: { trigger: 'axis', ...tt },
     xAxis: { type: 'value', ...axisVal },
     yAxis: { type: 'category', data: data.map((d) => d.name).reverse(), axisLabel: AXIS_FONT },
-    series: [{ type: 'bar', data: data.map((d) => d.value).reverse(), label: barLabel(spec.money), itemStyle: { color, borderRadius: [0, 4, 4, 0] }, barMaxWidth: 24 }],
+    series: [{
+      type: 'bar', data: data.map((d) => d.value).reverse(),
+      label: barLabel(spec.money),
+      itemStyle: { color: gradH(color), borderRadius: [0, 5, 5, 0], ...DEPTH },
+      emphasis: BAR_EMPHASIS,
+      barMaxWidth: barWidth(data.length),
+    }],
   }
 }
 
@@ -82,7 +111,7 @@ export default function ChartStrip({ rows, specs }: { rows: Row[]; specs: ChartS
   return (
     <Box sx={{ display: 'grid', gridTemplateColumns: cols, gap: 2, mb: 2 }}>
       {charts.map(({ spec, data }, i) => (
-        <Paper key={i} variant="outlined" sx={{ p: 2 }}>
+        <Paper key={i} variant="outlined" sx={{ p: 2, ...CARD_HOVER }}>
           <Typography variant="subtitle2" sx={{ mb: 1 }}>{spec.title}</Typography>
           <ReactECharts option={optionFor(spec, data)} style={{ height: 300 }} notMerge />
         </Paper>

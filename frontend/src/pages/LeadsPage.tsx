@@ -7,6 +7,7 @@ import DataTable from '../components/DataTable'
 import KpiCard from '../components/KpiCard'
 import { col } from './reportConfigs'
 import { pieLabel, LEGEND_FONT } from '../components/chartLabels'
+import { DEPTH, PIE_EMPHASIS, ANIM } from '../components/chartStyle'
 import { useLeads } from '../api/hooks'
 import { useReportFilters } from '../state/FiltersContext'
 import { fmtInt } from '../components/formatters'
@@ -57,15 +58,17 @@ export default function LeadsPage() {
 
   const sources = (data?.by_source ?? []).filter((s) => s.lead_source)
   const donutOption = {
+    ...ANIM,
     color: CHART.palette,
     tooltip: { trigger: 'item' },
     legend: { type: 'scroll', bottom: 0, textStyle: LEGEND_FONT },
     series: [
       {
         type: 'pie',
-        radius: ['36%', '60%'],
+        radius: ['34%', '58%'],
         avoidLabelOverlap: true,
-        itemStyle: { borderRadius: 4, borderColor: '#fff', borderWidth: 2 },
+        itemStyle: { borderRadius: 5, borderColor: '#fff', borderWidth: 2, ...DEPTH },
+        emphasis: PIE_EMPHASIS,
         label: pieLabel(false),
         data: sources.map((s) => ({ name: s.lead_source, value: Number(s.total_leads) })),
       },

@@ -8,6 +8,7 @@ import DataTable from '../components/DataTable'
 import KpiCard from '../components/KpiCard'
 import { REPORTS, col } from './reportConfigs'
 import { colLabel, AXIS_FONT } from '../components/chartLabels'
+import { gradV, DEPTH, BAR_EMPHASIS, ANIM, barWidth } from '../components/chartStyle'
 import { useReport, useNewOpportunity } from '../api/hooks'
 import { useReportFilters } from '../state/FiltersContext'
 import { fmtINR, fmtInt } from '../components/formatters'
@@ -91,11 +92,12 @@ export default function SalesTrackerPage() {
   const topWon = [...agg].sort((a, b) => b.closed_won_value - a.closed_won_value).slice(0, 10)
 
   const wonChart = {
-    grid: { left: 8, right: 16, top: 20, bottom: 70, containLabel: true },
+    ...ANIM,
+    grid: { left: 8, right: 16, top: 34, bottom: 70, containLabel: true },
     tooltip: { trigger: 'axis', valueFormatter: (v: number) => fmtINR(v) },
     xAxis: { type: 'category', data: topWon.map((t) => t.user_name), axisLabel: { rotate: 35, ...AXIS_FONT } },
     yAxis: { type: 'value', axisLabel: { formatter: (v: number) => fmtINR(v), ...AXIS_FONT } },
-    series: [{ type: 'bar', name: 'Closed Won', data: topWon.map((t) => t.closed_won_value), label: colLabel(true), itemStyle: { color: CHART.won, borderRadius: [4, 4, 0, 0] } }],
+    series: [{ type: 'bar', name: 'Closed Won', data: topWon.map((t) => t.closed_won_value), label: colLabel(true), itemStyle: { color: gradV(CHART.won), borderRadius: [5, 5, 0, 0], ...DEPTH }, emphasis: BAR_EMPHASIS, barMaxWidth: barWidth(topWon.length) }],
   }
   // Same visual as the New Opportunity page (the PBI report repeats it here):
   // opportunities created last month by salesperson, with Min construction-stage tooltip.
@@ -112,7 +114,7 @@ export default function SalesTrackerPage() {
     },
     xAxis: { type: 'category', data: byUser.map((u) => u.user_name), axisLabel: { rotate: 35, ...AXIS_FONT } },
     yAxis: { type: 'value', minInterval: 1, axisLabel: AXIS_FONT },
-    series: [{ type: 'bar', name: 'New Opportunities', data: byUser.map((u) => u.count), label: colLabel(false), itemStyle: { color: CHART.open, borderRadius: [4, 4, 0, 0] } }],
+    series: [{ type: 'bar', name: 'New Opportunities', data: byUser.map((u) => u.count), label: colLabel(false), itemStyle: { color: gradV(CHART.open), borderRadius: [5, 5, 0, 0], ...DEPTH }, emphasis: BAR_EMPHASIS, barMaxWidth: barWidth(byUser.length) }],
   }
 
   return (
