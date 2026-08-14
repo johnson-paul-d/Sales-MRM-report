@@ -2,8 +2,8 @@ import { useMemo } from 'react'
 import { Box, Paper, Typography } from '@mui/material'
 import ReactECharts from 'echarts-for-react'
 import { fmtINR } from './formatters'
-import { barLabel, colLabel, pieLabel, funnelLabel, fmtMonthName, AXIS_FONT, LEGEND_FONT } from './chartLabels'
-import { gradV, gradH, DEPTH, BAR_EMPHASIS, PIE_EMPHASIS, ANIM, barWidth, CARD_HOVER } from './chartStyle'
+import { barLabel, colLabel, pieLabel, funnelLabel, fmtMonthName, AXIS_FONT, LEGEND_FONT, NO_OVERLAP, moneyAxis } from './chartLabels'
+import { gradByValue, paletteGradV, paletteGradH, DEPTH, BAR_EMPHASIS, PIE_EMPHASIS, ANIM, barWidth, CARD_HOVER } from './chartStyle'
 import { CHART } from '../theme'
 import type { ChartSpec } from '../pages/reportConfigs'
 
@@ -37,7 +37,7 @@ function aggregate(rows: Row[], spec: ChartSpec): Datum[] {
 const fmt = (v: number) => fmtINR(v)
 
 function optionFor(spec: ChartSpec, data: Datum[]) {
-  const axisVal = spec.money ? { axisLabel: { formatter: fmt, ...AXIS_FONT } } : { axisLabel: AXIS_FONT }
+  const axisVal = spec.money ? { axisLabel: moneyAxis } : { axisLabel: AXIS_FONT }
   const tt = { textStyle: { fontSize: 14 }, ...(spec.money ? { valueFormatter: fmt } : {}) }
   const color = spec.color ?? CHART.palette[0]
 
@@ -69,18 +69,25 @@ function optionFor(spec: ChartSpec, data: Datum[]) {
     }
   }
   if (spec.kind === 'columns') {
-    const rotated = data.length > 8
+    const max = Math.max(...data.map((d) => d.value), 1)
     return {
       ...ANIM,
-      // Rotated value labels stand ~80px tall -- reserve full headroom so they never clip.
-      grid: { left: 8, right: 16, top: rotated ? 92 : 38, bottom: 24, containLabel: true },
+      grid: { left: 8, right: 16, top: 44, bottom: 24, containLabel: true },
       tooltip: { trigger: 'axis', ...tt },
       xAxis: { type: 'category', data: data.map((d) => d.name), axisLabel: AXIS_FONT },
-      yAxis: { type: 'value', ...axisVal },
+      yAxis: { type: 'value', ...axisVal, splitLine: { lineStyle: { color: '#efe7d9' } } },
       series: [{
-        type: 'bar', data: data.map((d) => d.value),
-        label: colLabel(spec.money, rotated ? 90 : 0),
-        itemStyle: { color: gradV(color), borderRadius: [5, 5, 0, 0], ...DEPTH },
+        type: 'bar',
+        // Chronological series: colour depth ranks the value. Categorical: own palette colour.
+        data: data.map((d, i) => ({
+          value: d.value,
+          itemStyle: {
+            color: spec.chronological ? gradByValue(color, d.value / max) : paletteGradV(CHART.palette, i),
+            borderRadius: [5, 5, 0, 0], ...DEPTH,
+          },
+        })),
+        label: colLabel(spec.money),
+        ...NO_OVERLAP,
         emphasis: BAR_EMPHASIS,
         barMaxWidth: barWidth(data.length),
       }],
@@ -91,12 +98,15 @@ function optionFor(spec: ChartSpec, data: Datum[]) {
     ...ANIM,
     grid: { left: 8, right: 92, top: 10, bottom: 8, containLabel: true },
     tooltip: { trigger: 'axis', ...tt },
-    xAxis: { type: 'value', ...axisVal },
+    xAxis: { type: 'value', ...axisVal, splitLine: { lineStyle: { color: '#efe7d9' } } },
     yAxis: { type: 'category', data: data.map((d) => d.name).reverse(), axisLabel: AXIS_FONT },
     series: [{
-      type: 'bar', data: data.map((d) => d.value).reverse(),
+      type: 'bar',
+      data: data.map((d, i) => ({
+        value: d.value,
+        itemStyle: { color: paletteGradH(CHART.palette, data.length - 1 - i), borderRadius: [0, 5, 5, 0], ...DEPTH },
+      })).reverse(),
       label: barLabel(spec.money),
-      itemStyle: { color: gradH(color), borderRadius: [0, 5, 5, 0], ...DEPTH },
       emphasis: BAR_EMPHASIS,
       barMaxWidth: barWidth(data.length),
     }],

@@ -5,8 +5,8 @@ import ReportShell from '../components/ReportShell'
 import DataTable from '../components/DataTable'
 import KpiCard from '../components/KpiCard'
 import { REPORTS } from './reportConfigs'
-import { barLabel, colLabel, pieLabel, fmtMonthName, AXIS_FONT, LEGEND_FONT } from '../components/chartLabels'
-import { gradV, gradH, DEPTH, BAR_EMPHASIS, PIE_EMPHASIS, ANIM, barWidth } from '../components/chartStyle'
+import { barLabel, colLabel, pieLabel, fmtMonthName, AXIS_FONT, LEGEND_FONT, NO_OVERLAP, moneyAxis } from '../components/chartLabels'
+import { gradByValue, paletteGradH, DEPTH, BAR_EMPHASIS, PIE_EMPHASIS, ANIM, barWidth } from '../components/chartStyle'
 import { useReport } from '../api/hooks'
 import { useReportFilters } from '../state/FiltersContext'
 import { fmtINR, fmtInt } from '../components/formatters'
@@ -38,17 +38,16 @@ function groupSum(rows: Row[], keyFn: (r: Row) => string): Datum[] {
 
 const inr = (v: number) => fmtINR(v)
 
-const hbar = (items: Datum[], color: string) => ({
+const hbar = (items: Datum[]) => ({
   ...ANIM,
   grid: { left: 8, right: 92, top: 10, bottom: 8, containLabel: true },
   tooltip: { trigger: 'axis', valueFormatter: inr },
-  xAxis: { type: 'value', axisLabel: { formatter: inr, ...AXIS_FONT } },
+  xAxis: { type: 'value', axisLabel: moneyAxis, splitLine: { lineStyle: { color: '#efe7d9' } } },
   yAxis: { type: 'category', data: items.map((i) => i.name).reverse(), axisLabel: AXIS_FONT },
   series: [{
     type: 'bar',
-    data: items.map((i) => i.value).reverse(),
+    data: items.map((i, idx) => ({ value: i.value, itemStyle: { color: paletteGradH(CHART.palette, idx), borderRadius: [0, 5, 5, 0], ...DEPTH } })).reverse(),
     label: barLabel(true),
-    itemStyle: { color: gradH(color), borderRadius: [0, 5, 5, 0], ...DEPTH },
     emphasis: BAR_EMPHASIS,
     barMaxWidth: barWidth(items.length),
   }],
@@ -70,22 +69,25 @@ const donut = (items: Datum[]) => ({
   }],
 })
 
-const columns = (items: Datum[]) => ({
-  ...ANIM,
-  // Rotated value labels need full headroom above the tallest column.
-  grid: { left: 8, right: 16, top: items.length > 8 ? 92 : 38, bottom: 24, containLabel: true },
-  tooltip: { trigger: 'axis', valueFormatter: inr },
-  xAxis: { type: 'category', data: items.map((i) => fmtMonthName(i.name)), axisLabel: AXIS_FONT },
-  yAxis: { type: 'value', axisLabel: { formatter: inr, ...AXIS_FONT } },
-  series: [{
-    type: 'bar',
-    data: items.map((i) => i.value),
-    label: colLabel(true, items.length > 8 ? 90 : 0),
-    itemStyle: { color: gradV(CHART.lost), borderRadius: [5, 5, 0, 0], ...DEPTH },
-    emphasis: BAR_EMPHASIS,
-    barMaxWidth: barWidth(items.length),
-  }],
-})
+const columns = (items: Datum[]) => {
+  const max = Math.max(...items.map((i) => i.value), 1)
+  return {
+    ...ANIM,
+    grid: { left: 8, right: 16, top: 44, bottom: 24, containLabel: true },
+    tooltip: { trigger: 'axis', valueFormatter: inr },
+    xAxis: { type: 'category', data: items.map((i) => fmtMonthName(i.name)), axisLabel: AXIS_FONT },
+    yAxis: { type: 'value', axisLabel: moneyAxis, splitLine: { lineStyle: { color: '#efe7d9' } } },
+    series: [{
+      type: 'bar',
+      // Colour depth ranks the month: heavier losses = deeper red.
+      data: items.map((i) => ({ value: i.value, itemStyle: { color: gradByValue(CHART.lost, i.value / max), borderRadius: [5, 5, 0, 0], ...DEPTH } })),
+      label: colLabel(true),
+      ...NO_OVERLAP,
+      emphasis: BAR_EMPHASIS,
+      barMaxWidth: barWidth(items.length),
+    }],
+  }
+}
 
 function ChartCard({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -135,10 +137,10 @@ export default function ClosedLostPage() {
 
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2, mb: 2 }}>
             <ChartCard title="Why we lose — by Loss Reason">
-              <ReactECharts option={hbar(byReason, CHART.lost)} style={{ height: 300 }} notMerge />
+              <ReactECharts option={hbar(byReason)} style={{ height: 300 }} notMerge />
             </ChartCard>
             <ChartCard title="Lost Value by Salesperson">
-              <ReactECharts option={hbar(bySalesperson, CHART.open)} style={{ height: 300 }} notMerge />
+              <ReactECharts option={hbar(bySalesperson)} style={{ height: 300 }} notMerge />
             </ChartCard>
             <ChartCard title="By Division">
               <ReactECharts option={donut(byDivision)} style={{ height: 300 }} notMerge />

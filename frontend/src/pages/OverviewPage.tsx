@@ -5,9 +5,9 @@ import ReportShell from '../components/ReportShell'
 import KpiCard from '../components/KpiCard'
 import { useReport, useLeads } from '../api/hooks'
 import { useReportFilters } from '../state/FiltersContext'
-import { fmtINR, fmtInt } from '../components/formatters'
-import { barLabel, colLabel, pieLabel, fmtMonthName, AXIS_FONT, LEGEND_FONT } from '../components/chartLabels'
-import { gradV, gradH, DEPTH, BAR_EMPHASIS, PIE_EMPHASIS, ANIM, barWidth } from '../components/chartStyle'
+import { fmtINR, fmtINRShort, fmtInt } from '../components/formatters'
+import { barLabel, colLabel, pieLabel, fmtMonthName, AXIS_FONT, LEGEND_FONT, NO_OVERLAP, moneyAxis } from '../components/chartLabels'
+import { gradV, DEPTH, BAR_EMPHASIS, PIE_EMPHASIS, ANIM, barWidth, paletteGradH } from '../components/chartStyle'
 import { CHART } from '../theme'
 
 interface TrackerRow {
@@ -81,32 +81,32 @@ export default function OverviewPage() {
 
   const busy = tracker.isLoading || leads.isLoading || lost.isLoading
 
-  // Grouped monthly bars: label only values >= 1 Cr so the chart stays legible.
+  // Grouped monthly bars: horizontal compact labels; sub-₹50 L stays silent
+  // and hideOverlap drops any label that would collide with a neighbour.
   const trendLabel = {
-    ...colLabel(true, 90),
+    ...colLabel(true),
     fontSize: 12,
-    formatter: (p: any) => (Number(p.value) >= 1e7 ? fmtINR(p.value) : ''),
+    formatter: (p: any) => (Number(p.value) >= 5e6 ? fmtINRShort(p.value) : ''),
   }
   const outcomeTrend = {
     ...ANIM,
-    // Rotated value labels need full headroom above the tallest bar.
-    grid: { left: 8, right: 16, top: 96, bottom: 24, containLabel: true },
+    grid: { left: 8, right: 16, top: 56, bottom: 24, containLabel: true },
     tooltip: { trigger: 'axis', valueFormatter: inr },
     legend: { top: 0, textStyle: LEGEND_FONT },
     xAxis: { type: 'category', data: byMonth.map((m) => fmtMonthName(m[0])), axisLabel: AXIS_FONT },
-    yAxis: { type: 'value', axisLabel: { formatter: inr, ...AXIS_FONT } },
+    yAxis: { type: 'value', axisLabel: moneyAxis, splitLine: { lineStyle: { color: '#efe7d9' } } },
     series: [
-      { name: 'Won', type: 'bar', data: byMonth.map((m) => m[1].won), label: trendLabel, itemStyle: { color: gradV(CHART.won), borderRadius: [4, 4, 0, 0], ...DEPTH }, emphasis: BAR_EMPHASIS, barMaxWidth: 20 },
-      { name: 'Lost', type: 'bar', data: byMonth.map((m) => m[1].lost), label: trendLabel, itemStyle: { color: gradV(CHART.lost), borderRadius: [4, 4, 0, 0], ...DEPTH }, emphasis: BAR_EMPHASIS, barMaxWidth: 20 },
-      { name: 'Dropped', type: 'bar', data: byMonth.map((m) => m[1].dropped), label: trendLabel, itemStyle: { color: gradV(CHART.dropped), borderRadius: [4, 4, 0, 0], ...DEPTH }, emphasis: BAR_EMPHASIS, barMaxWidth: 20 },
+      { name: 'Won', type: 'bar', data: byMonth.map((m) => m[1].won), label: trendLabel, ...NO_OVERLAP, itemStyle: { color: gradV(CHART.won), borderRadius: [4, 4, 0, 0], ...DEPTH }, emphasis: BAR_EMPHASIS, barMaxWidth: 20 },
+      { name: 'Lost', type: 'bar', data: byMonth.map((m) => m[1].lost), label: trendLabel, ...NO_OVERLAP, itemStyle: { color: gradV(CHART.lost), borderRadius: [4, 4, 0, 0], ...DEPTH }, emphasis: BAR_EMPHASIS, barMaxWidth: 20 },
+      { name: 'Dropped', type: 'bar', data: byMonth.map((m) => m[1].dropped), label: trendLabel, ...NO_OVERLAP, itemStyle: { color: gradV(CHART.dropped), borderRadius: [4, 4, 0, 0], ...DEPTH }, emphasis: BAR_EMPHASIS, barMaxWidth: 20 },
     ],
   }
   const pipelineChart = {
     ...ANIM,
-    grid: { left: 8, right: 16, top: 34, bottom: 24, containLabel: true },
+    grid: { left: 8, right: 16, top: 40, bottom: 24, containLabel: true },
     tooltip: { trigger: 'axis', valueFormatter: inr },
     xAxis: { type: 'category', data: ['Open Quotes', 'New Quotes', 'Closed Won'], axisLabel: AXIS_FONT },
-    yAxis: { type: 'value', axisLabel: { formatter: inr, ...AXIS_FONT } },
+    yAxis: { type: 'value', axisLabel: moneyAxis, splitLine: { lineStyle: { color: '#efe7d9' } } },
     series: [{
       type: 'bar', barMaxWidth: barWidth(3), label: colLabel(true), emphasis: BAR_EMPHASIS,
       data: [
@@ -120,9 +120,13 @@ export default function OverviewPage() {
     ...ANIM,
     grid: { left: 8, right: 92, top: 10, bottom: 8, containLabel: true },
     tooltip: { trigger: 'axis', valueFormatter: inr },
-    xAxis: { type: 'value', axisLabel: { formatter: inr, ...AXIS_FONT } },
+    xAxis: { type: 'value', axisLabel: moneyAxis, splitLine: { lineStyle: { color: '#efe7d9' } } },
     yAxis: { type: 'category', data: topReps.map((t) => t.name).reverse(), axisLabel: AXIS_FONT },
-    series: [{ type: 'bar', data: topReps.map((t) => t.value).reverse(), label: barLabel(true), itemStyle: { color: gradH(CHART.won), borderRadius: [0, 5, 5, 0], ...DEPTH }, emphasis: BAR_EMPHASIS, barMaxWidth: barWidth(topReps.length) }],
+    series: [{
+      type: 'bar',
+      data: topReps.map((t, i) => ({ value: t.value, itemStyle: { color: paletteGradH(CHART.palette, i), borderRadius: [0, 5, 5, 0], ...DEPTH } })).reverse(),
+      label: barLabel(true), emphasis: BAR_EMPHASIS, barMaxWidth: barWidth(topReps.length),
+    }],
   }
   const reasonChart = {
     ...ANIM,

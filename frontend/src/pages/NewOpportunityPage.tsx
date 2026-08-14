@@ -5,8 +5,8 @@ import ReportShell from '../components/ReportShell'
 import DataTable from '../components/DataTable'
 import KpiCard from '../components/KpiCard'
 import { col } from './reportConfigs'
-import { colLabel, AXIS_FONT } from '../components/chartLabels'
-import { gradV, DEPTH, BAR_EMPHASIS, ANIM, barWidth } from '../components/chartStyle'
+import { colLabel, AXIS_FONT, NO_OVERLAP } from '../components/chartLabels'
+import { gradByValue, DEPTH, BAR_EMPHASIS, ANIM, barWidth } from '../components/chartStyle'
 import { useNewOpportunity } from '../api/hooks'
 import { useReportFilters } from '../state/FiltersContext'
 import { fmtInt } from '../components/formatters'
@@ -44,14 +44,14 @@ export default function NewOpportunityPage() {
       },
     },
     xAxis: { type: 'category', data: byUser.map((u) => u.user_name), axisLabel: { rotate: 35, ...AXIS_FONT } },
-    yAxis: { type: 'value', minInterval: 1, axisLabel: AXIS_FONT },
+    yAxis: { type: 'value', minInterval: 1, axisLabel: AXIS_FONT, splitLine: { lineStyle: { color: '#efe7d9' } } },
     series: [
       {
         type: 'bar',
         name: 'New Opportunities',
-        data: byUser.map((u) => u.count),
+        data: (() => { const max = Math.max(...byUser.map((u) => u.count), 1); return byUser.map((u) => ({ value: u.count, itemStyle: { color: gradByValue(CHART.open, u.count / max), borderRadius: [5, 5, 0, 0], ...DEPTH } })) })(),
         label: colLabel(false),
-        itemStyle: { color: gradV(CHART.open), borderRadius: [5, 5, 0, 0], ...DEPTH },
+        ...NO_OVERLAP,
         emphasis: BAR_EMPHASIS,
         barMaxWidth: barWidth(byUser.length),
       },

@@ -16,6 +16,16 @@ export function fmtINR(n: number | null | undefined): string {
   return `₹${inr.format(Math.round(v))}`
 }
 
+/** Ultra-compact INR for chart labels/axes: ₹112 Cr, ₹9.2 Cr, ₹80.7 L. */
+export function fmtINRShort(n: number | null | undefined): string {
+  if (n == null || isNaN(Number(n))) return ''
+  const v = Number(n)
+  const a = Math.abs(v)
+  if (a >= 1e7) { const c = v / 1e7; return `₹${c >= 100 ? inr.format(Math.round(c)) : c.toFixed(1)} Cr` }
+  if (a >= 1e5) { const l = v / 1e5; return `₹${l >= 100 ? inr.format(Math.round(l)) : l.toFixed(1)} L` }
+  return `₹${inr.format(Math.round(v))}`
+}
+
 export const fmtDate = (s: string | null | undefined) => {
   if (!s) return ''
   const d = new Date(s)

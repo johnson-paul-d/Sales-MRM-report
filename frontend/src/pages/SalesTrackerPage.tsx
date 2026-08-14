@@ -7,8 +7,8 @@ import SalesTrackerTree from '../components/SalesTrackerTree'
 import DataTable from '../components/DataTable'
 import KpiCard from '../components/KpiCard'
 import { REPORTS, col } from './reportConfigs'
-import { colLabel, AXIS_FONT } from '../components/chartLabels'
-import { gradV, DEPTH, BAR_EMPHASIS, ANIM, barWidth } from '../components/chartStyle'
+import { colLabel, AXIS_FONT, NO_OVERLAP, moneyAxis } from '../components/chartLabels'
+import { gradByValue, DEPTH, BAR_EMPHASIS, ANIM, barWidth } from '../components/chartStyle'
 import { useReport, useNewOpportunity } from '../api/hooks'
 import { useReportFilters } from '../state/FiltersContext'
 import { fmtINR, fmtInt } from '../components/formatters'
@@ -96,8 +96,12 @@ export default function SalesTrackerPage() {
     grid: { left: 8, right: 16, top: 34, bottom: 70, containLabel: true },
     tooltip: { trigger: 'axis', valueFormatter: (v: number) => fmtINR(v) },
     xAxis: { type: 'category', data: topWon.map((t) => t.user_name), axisLabel: { rotate: 35, ...AXIS_FONT } },
-    yAxis: { type: 'value', axisLabel: { formatter: (v: number) => fmtINR(v), ...AXIS_FONT } },
-    series: [{ type: 'bar', name: 'Closed Won', data: topWon.map((t) => t.closed_won_value), label: colLabel(true), itemStyle: { color: gradV(CHART.won), borderRadius: [5, 5, 0, 0], ...DEPTH }, emphasis: BAR_EMPHASIS, barMaxWidth: barWidth(topWon.length) }],
+    yAxis: { type: 'value', axisLabel: moneyAxis, splitLine: { lineStyle: { color: '#efe7d9' } } },
+    series: [{
+      type: 'bar', name: 'Closed Won',
+      data: (() => { const max = Math.max(...topWon.map((t) => t.closed_won_value), 1); return topWon.map((t) => ({ value: t.closed_won_value, itemStyle: { color: gradByValue(CHART.won, t.closed_won_value / max), borderRadius: [5, 5, 0, 0], ...DEPTH } })) })(),
+      label: colLabel(true), ...NO_OVERLAP, emphasis: BAR_EMPHASIS, barMaxWidth: barWidth(topWon.length),
+    }],
   }
   // Same visual as the New Opportunity page (the PBI report repeats it here):
   // opportunities created last month by salesperson, with Min construction-stage tooltip.
@@ -113,8 +117,12 @@ export default function SalesTrackerPage() {
       },
     },
     xAxis: { type: 'category', data: byUser.map((u) => u.user_name), axisLabel: { rotate: 35, ...AXIS_FONT } },
-    yAxis: { type: 'value', minInterval: 1, axisLabel: AXIS_FONT },
-    series: [{ type: 'bar', name: 'New Opportunities', data: byUser.map((u) => u.count), label: colLabel(false), itemStyle: { color: gradV(CHART.open), borderRadius: [5, 5, 0, 0], ...DEPTH }, emphasis: BAR_EMPHASIS, barMaxWidth: barWidth(byUser.length) }],
+    yAxis: { type: 'value', minInterval: 1, axisLabel: AXIS_FONT, splitLine: { lineStyle: { color: '#efe7d9' } } },
+    series: [{
+      type: 'bar', name: 'New Opportunities',
+      data: (() => { const max = Math.max(...byUser.map((u) => u.count), 1); return byUser.map((u) => ({ value: u.count, itemStyle: { color: gradByValue(CHART.open, u.count / max), borderRadius: [5, 5, 0, 0], ...DEPTH } })) })(),
+      label: colLabel(false), ...NO_OVERLAP, emphasis: BAR_EMPHASIS, barMaxWidth: barWidth(byUser.length),
+    }],
   }
 
   return (

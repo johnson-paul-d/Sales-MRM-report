@@ -29,6 +29,21 @@ export const gradH = (color: string) => ({
   ],
 })
 
+/** Value-mapped vertical gradient: t in [0,1] (value/max) — the bigger the
+ *  value, the deeper and richer the bar, so colour itself ranks the months. */
+export const gradByValue = (color: string, t: number) => ({
+  type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+  colorStops: [
+    { offset: 0, color: shade(color, 0.55 - 0.40 * t) },
+    { offset: 1, color: shade(color, 0.10 - 0.28 * t) },
+  ],
+})
+
+/** Per-datum palette gradients so categorical bars (people, opps) get their
+ *  own colour instead of a monochrome wall. */
+export const paletteGradV = (palette: string[], i: number) => gradV(palette[i % palette.length])
+export const paletteGradH = (palette: string[], i: number) => gradH(palette[i % palette.length])
+
 /** Soft drop shadow that gives bars/slices depth. */
 export const DEPTH = {
   shadowBlur: 6,
