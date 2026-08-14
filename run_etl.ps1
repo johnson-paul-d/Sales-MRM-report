@@ -4,10 +4,19 @@
 # (every 6h). Runs salesforce_to_postgres.py with the dedicated venv and
 # appends all output to logs\etl_<timestamp>.log.
 #
-# The ETL drops+recreates the forecast report tables each run, but the
-# reporting views vw_forecasts / vw_forecast_latest depend on them. So we
-# drop those views first and rebuild them (sql\03_forecasts.sql) afterward.
+# The ETL replaces the forecast report tables each run, and the reporting
+# views vw_forecasts / vw_forecast_latest depend on them. The Python sync
+# drops the views itself right before reloading those tables, and the
+# finally block below re-applies sql\03_forecasts.sql on every exit --
+# success, sync failure, or interruption -- so a mid-run death can no
+# longer leave the views missing (03_forecasts.sql drops-if-exists first,
+# so it is safe to run unconditionally).
 # =====================================================================
+param(
+  [int]$MaxAttempts   = 2,    # total tries of the Python sync (1 = no retry)
+  [int]$RetryDelaySec = 300   # wait before retrying, e.g. transient Salesforce outage
+)
+
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $root
 
@@ -28,21 +37,29 @@ $env:PGUSER = $env:PG_USERNAME; $env:PGPASSWORD = $env:PG_PASSWORD
 
 "[$(Get-Date -Format o)] ETL start (python: $py)" | Out-File -FilePath $log -Encoding utf8
 
-# 1. Drop views that depend on the forecast report tables (lets the ETL drop/recreate them).
-if (Test-Path $psql) {
-  & $psql -q -c "DROP VIEW IF EXISTS vw_forecast_latest CASCADE; DROP VIEW IF EXISTS vw_forecasts CASCADE;" *>> $log
+$code = 1
+try {
+  # 1. Run the Salesforce -> Postgres sync, retrying once on failure
+  #    (a killed process or a Salesforce connection drop both exit non-zero;
+  #    the sync upserts, so a re-run over partial progress is safe).
+  for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+    if ($attempt -gt 1) {
+      "[$(Get-Date -Format o)] Sync failed (exit $code); retrying in $RetryDelaySec s (attempt $attempt of $MaxAttempts)" | Out-File -FilePath $log -Append -Encoding utf8
+      Start-Sleep -Seconds $RetryDelaySec
+    }
+    & $py 'salesforce_to_postgres.py' *>> $log
+    $code = $LASTEXITCODE
+    if ($code -eq 0) { break }
+  }
 }
-
-# 2. Run the incremental Salesforce -> Postgres sync.
-& $py 'salesforce_to_postgres.py' *>> $log
-$code = $LASTEXITCODE
-
-# 3. Rebuild the forecast views on the refreshed tables.
-if (Test-Path $psql) {
-  & $psql -q -f (Join-Path $root 'sql\03_forecasts.sql') *>> $log
+finally {
+  # 2. Rebuild the forecast views no matter how the sync ended -- the app's
+  #    Last Month page 500s while they are missing.
+  if (Test-Path $psql) {
+    & $psql -q -f (Join-Path $root 'sql\03_forecasts.sql') *>> $log
+  }
+  "[$(Get-Date -Format o)] ETL finished with exit code $code" | Out-File -FilePath $log -Append -Encoding utf8
 }
-
-"[$(Get-Date -Format o)] ETL finished with exit code $code" | Out-File -FilePath $log -Append -Encoding utf8
 
 # Retain 30 days of logs.
 Get-ChildItem $logDir -Filter 'etl_*.log' -ErrorAction SilentlyContinue |

@@ -965,6 +965,14 @@ def sync_salesforce_report(sf, engine, report_id, table_name):
         df = flatten_report(report)
         logger.info(f"{len(df)} rows retrieved for {table_name}")
 
+        # vw_forecasts / vw_forecast_latest read this table, and to_sql's
+        # DROP TABLE has no CASCADE, so the views must go first. Dropped here
+        # (not at run start) to keep the views live during the object sync;
+        # run_etl.ps1 re-applies sql\03_forecasts.sql after every run.
+        with engine.begin() as conn:
+            conn.execute(text("DROP VIEW IF EXISTS vw_forecast_latest CASCADE"))
+            conn.execute(text("DROP VIEW IF EXISTS vw_forecasts CASCADE"))
+
         # Replace the table content
         df.to_sql(
             table_name,
