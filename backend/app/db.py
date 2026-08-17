@@ -40,7 +40,13 @@ def init_db() -> None:
     """Create the `app` schema and its tables if missing (idempotent)."""
     from . import models  # noqa: F401  (register models on Base)
     with engine.begin() as conn:
-        conn.execute(text("CREATE SCHEMA IF NOT EXISTS app"))
+        # Check first: CREATE SCHEMA IF NOT EXISTS demands CREATE on the
+        # database even when the schema exists, which the least-privilege
+        # sieger_app role (sql/04_app_role.sql) deliberately lacks.
+        exists = conn.execute(
+            text("SELECT 1 FROM pg_namespace WHERE nspname = 'app'")).scalar()
+        if not exists:
+            conn.execute(text("CREATE SCHEMA app"))
     Base.metadata.create_all(bind=engine)
 
 

@@ -1,5 +1,6 @@
 """Authentication endpoints."""
 import os
+import threading
 import time
 from collections import defaultdict, deque
 from datetime import datetime, timezone
@@ -23,6 +24,9 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 _FAIL_WINDOW_SECS = 15 * 60
 _MAX_FAILS = 5
 _failures: dict[str, deque] = defaultdict(deque)
+# `login` is a sync endpoint, so requests run concurrently on the threadpool
+# and share this dict -- every read/modify path below holds the lock.
+_lock = threading.Lock()
 
 
 def _prune(q: deque, now: float) -> None:
@@ -32,23 +36,32 @@ def _prune(q: deque, now: float) -> None:
 
 def _check_throttle(*keys: str) -> None:
     now = time.monotonic()
-    for key in keys:
-        q = _failures[key]
-        _prune(q, now)
-        if len(q) >= _MAX_FAILS:
-            raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS,
-                                "Too many failed attempts. Try again later.")
+    with _lock:
+        for key in keys:
+            q = _failures[key]
+            _prune(q, now)
+            if len(q) >= _MAX_FAILS:
+                raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS,
+                                    "Too many failed attempts. Try again later.")
 
 
 def _record_failure(*keys: str) -> None:
     now = time.monotonic()
-    for key in keys:
-        _failures[key].append(now)
-    # Bound memory: an attacker cycling emails/IPs must not grow the dict
-    # forever. Sweep buckets whose whole window has already expired.
-    if len(_failures) > 5000:
-        for key in [k for k, q in _failures.items() if not q or now - q[-1] > _FAIL_WINDOW_SECS]:
-            del _failures[key]
+    with _lock:
+        for key in keys:
+            _failures[key].append(now)
+        # Bound memory: an attacker cycling emails/IPs must not grow the dict
+        # forever. Sweep buckets whose whole window has already expired.
+        if len(_failures) > 5000:
+            expired = [k for k, q in list(_failures.items())
+                       if not q or now - q[-1] > _FAIL_WINDOW_SECS]
+            for key in expired:
+                _failures.pop(key, None)
+
+
+def _clear_failures(key: str) -> None:
+    with _lock:
+        _failures.pop(key, None)
 
 
 def _client_ip(request: Request) -> str:
@@ -77,7 +90,7 @@ def login(request: Request, form: OAuth2PasswordRequestForm = Depends(),
         time.sleep(0.5)  # flat cost per failure; also masks user-exists timing
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Incorrect email or password")
 
-    _failures.pop(f"email:{email}", None)
+    _clear_failures(f"email:{email}")
     user.last_login = datetime.now(tz=timezone.utc)
     db.commit()
     return Token(access_token=create_access_token(user))

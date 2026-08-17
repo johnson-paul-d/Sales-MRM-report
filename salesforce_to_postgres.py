@@ -986,6 +986,30 @@ def sync_salesforce_report(sf, engine, report_id, table_name):
         logger.error(f"Error syncing report {table_name}: {e}", exc_info=True)
         raise
 
+
+FORECAST_VIEWS_SQL = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sql", "03_forecasts.sql")
+
+
+def rebuild_forecast_views(engine):
+    """Recreate vw_forecasts / vw_forecast_latest from sql/03_forecasts.sql.
+
+    sync_salesforce_report() drops these views before replacing the report
+    tables, so this must run afterwards -- and it must not depend on anything
+    outside this process (run_etl.ps1 re-applies the same file via psql as a
+    second line of defence, but psql may be missing or fail silently).
+    The SQL file is idempotent (DROP VIEW IF EXISTS first).
+    """
+    with open(FORECAST_VIEWS_SQL, encoding="utf-8") as fh:
+        sql = fh.read()
+    with engine.begin() as conn:
+        # Raw DBAPI cursor with NO parameters: psycopg2 then runs the whole
+        # multi-statement script verbatim (no '%' interpolation -- the file
+        # has a literal '%' in "Probability (%) (Historical)", and no bind
+        # parsing of '::' casts). exec_driver_sql/text() would mangle it.
+        with conn.connection.cursor() as cur:
+            cur.execute(sql)
+    logger.info("Forecast views rebuilt from %s", FORECAST_VIEWS_SQL)
+
 # ============================================================
 # 20. MAIN (Steps 1, 15, 16) + REPORT SYNC
 # ============================================================
@@ -1055,16 +1079,25 @@ def main():
     logger.info(" SYNCING HISTORICAL TRENDING REPORTS")
     logger.info("="*50)
     try:
-        sync_salesforce_report(sf, engine, "00Ofu000006f1pVEAQ", "forecasts_bi_mrm_cps_north")
-    except Exception as e:
-        logger.error("Failed to sync north report: %s", e)
-        failed += 1
+        try:
+            sync_salesforce_report(sf, engine, "00Ofu000006f1pVEAQ", "forecasts_bi_mrm_cps_north")
+        except Exception as e:
+            logger.error("Failed to sync north report: %s", e)
+            failed += 1
 
-    try:
-        sync_salesforce_report(sf, engine, "00Ofu000005vp1JEAQ", "forecasts_bi_mrm_cps_south")
-    except Exception as e:
-        logger.error("Failed to sync south report: %s", e)
-        failed += 1
+        try:
+            sync_salesforce_report(sf, engine, "00Ofu000005vp1JEAQ", "forecasts_bi_mrm_cps_south")
+        except Exception as e:
+            logger.error("Failed to sync south report: %s", e)
+            failed += 1
+    finally:
+        # The report syncs drop the forecast views; put them back no matter
+        # what happened above (the app's Last Month page 500s without them).
+        try:
+            rebuild_forecast_views(engine)
+        except Exception as e:
+            logger.error("Failed to rebuild forecast views: %s", e, exc_info=True)
+            failed += 1
 
     logger.info("="*50)
     logger.info("ETL finished: %d succeeded, %d failed.", success, failed)

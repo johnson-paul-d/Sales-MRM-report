@@ -6,11 +6,12 @@
 #
 # The ETL replaces the forecast report tables each run, and the reporting
 # views vw_forecasts / vw_forecast_latest depend on them. The Python sync
-# drops the views itself right before reloading those tables, and the
-# finally block below re-applies sql\03_forecasts.sql on every exit --
-# success, sync failure, or interruption -- so a mid-run death can no
-# longer leave the views missing (03_forecasts.sql drops-if-exists first,
-# so it is safe to run unconditionally).
+# drops the views right before reloading those tables and rebuilds them
+# itself afterwards (rebuild_forecast_views). The finally block below
+# re-applies sql\03_forecasts.sql via psql on every exit -- success, sync
+# failure, or a killed process -- as a second line of defence, so a mid-run
+# death can no longer leave the views missing (03_forecasts.sql
+# drops-if-exists first, so it is safe to run unconditionally).
 # =====================================================================
 param(
   [int]$MaxAttempts   = 2,    # total tries of the Python sync (1 = no retry)
@@ -25,7 +26,12 @@ if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Path $logDir | Out
 $stamp = Get-Date -Format 'yyyyMMdd_HHmmss'
 $log   = Join-Path $logDir "etl_$stamp.log"
 $py    = Join-Path $root '.venv-etl\Scripts\python.exe'
-$psql  = 'C:\Program Files\PostgreSQL\18\bin\psql.exe'
+# First psql that exists: known install paths (newest first), then PATH.
+$psql  = @('C:\Program Files\PostgreSQL\18\bin\psql.exe',
+           'C:\Program Files\PostgreSQL\17\bin\psql.exe',
+           'C:\Program Files\PostgreSQL\16\bin\psql.exe') +
+         @((Get-Command psql.exe -ErrorAction SilentlyContinue).Source) |
+         Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
 
 # Load PG_* settings from .env into libpq's PG* vars so psql can connect.
 Get-Content (Join-Path $root '.env') | Where-Object { $_ -match '^\s*PG_[A-Z_]+\s*=' } | ForEach-Object {
@@ -54,9 +60,15 @@ try {
 }
 finally {
   # 2. Rebuild the forecast views no matter how the sync ended -- the app's
-  #    Last Month page 500s while they are missing.
-  if (Test-Path $psql) {
-    & $psql -q -f (Join-Path $root 'sql\03_forecasts.sql') *>> $log
+  #    Last Month page 500s while they are missing. (Python does this too;
+  #    this covers a killed/crashed python.) Loud if it can't run or fails.
+  if ($psql) {
+    & $psql -q -v ON_ERROR_STOP=1 -f (Join-Path $root 'sql\03_forecasts.sql') *>> $log
+    if ($LASTEXITCODE -ne 0) {
+      "[$(Get-Date -Format o)] WARNING: psql view rebuild exited $LASTEXITCODE -- check vw_forecasts exists" | Out-File -FilePath $log -Append -Encoding utf8
+    }
+  } else {
+    "[$(Get-Date -Format o)] WARNING: psql.exe not found -- forecast views only rebuilt if python completed" | Out-File -FilePath $log -Append -Encoding utf8
   }
   "[$(Get-Date -Format o)] ETL finished with exit code $code" | Out-File -FilePath $log -Append -Encoding utf8
 }
