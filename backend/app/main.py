@@ -9,7 +9,9 @@ import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from .config import settings
 from .db import init_db
@@ -25,9 +27,16 @@ async def lifespan(app: FastAPI):
     # startup on a transient DB/tunnel hiccup -- the schema already exists in
     # normal operation, and the app must still come up so its HTTP port opens
     # (otherwise Render's health check kills the deploy).
-    if IS_PROD and settings.secret_key == "dev-insecure-change-me":
-        logging.getLogger("uvicorn.error").critical(
-            "SECRET_KEY is the insecure default in production -- set the env var!")
+    log = logging.getLogger("uvicorn.error")
+    if IS_PROD and settings.secret_key_is_ephemeral:
+        log.critical(
+            "SECRET_KEY env var is not set -- running with a random per-boot key, "
+            "so every restart logs all users out. Set a 32+ char random "
+            "SECRET_KEY on Render!")
+    elif IS_PROD and settings.secret_key_is_weak:
+        log.warning(
+            "SECRET_KEY is under 32 bytes (below the HS256 minimum, RFC 7518). "
+            "Rotate it to a 32+ char random value; all users re-login once.")
     try:
         init_db()
     except Exception as exc:  # noqa: BLE001
@@ -46,6 +55,17 @@ app = FastAPI(
 )
 
 
+@app.exception_handler(RequestValidationError)
+async def validation_error(_request: Request, exc: RequestValidationError):
+    """422 with a human-readable string `detail` (FastAPI's default is a list of
+    error dicts, which the SPA renders straight into a Snackbar)."""
+    parts = []
+    for e in exc.errors():
+        loc = [str(p) for p in e.get("loc", ()) if p not in ("body", "query", "path")]
+        parts.append(f"{'.'.join(loc) or 'request'}: {e.get('msg', 'invalid')}")
+    return JSONResponse(status_code=422, content={"detail": "; ".join(parts) or "Invalid request"})
+
+
 @app.middleware("http")
 async def security_headers(request: Request, call_next):
     resp = await call_next(request)
@@ -61,8 +81,9 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    # Exactly what the SPA uses -- no blanket grants.
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 app.include_router(auth.router)

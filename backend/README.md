@@ -32,6 +32,25 @@ come from `SEED_ADMIN_PASSWORD` / `SEED_MANAGER_PASSWORD` env vars, or are rando
 generated and printed once. **No credentials live in this repository** — any password
 that ever appeared here has been rotated and no longer works.
 
+## Security model
+
+- **Tokens** are HS256 JWTs carrying a fingerprint of the user's password hash
+  (`pv` claim) — changing/resetting a password immediately invalidates every
+  token issued before it. On Render, a missing `SECRET_KEY` no longer falls back
+  to the repo's known default: a random per-boot key is generated instead (all
+  sessions reset on each restart until the env var is set). A key under 32 bytes
+  still works but logs a startup warning — rotate it to a 32+ char random value.
+- **Login throttling**: 5 failures / 15 min per email *and* per client IP → 429.
+  Behind Render's proxy the client IP is taken from the proxy-appended (rightmost)
+  `X-Forwarded-For` entry, so one attacker can't lock out the whole userbase and
+  can't spoof their way past the limit.
+- **Passwords**: scrypt-hashed; admin-set passwords must be 10–128 chars.
+- **DB least privilege** (opt-in): `sql/04_app_role.sql` creates a `sieger_app`
+  role that can only read the replicated data and write the `app` schema. Set its
+  password out-of-band, point `PG_USERNAME`/`PG_PASSWORD` at it on Render, and
+  tighten `pg_hba.conf` to that role for the tailnet — the API then never
+  connects as a superuser. The local ETL keeps running as `postgres`.
+
 ## How it fits together
 
 - **`app/`** — FastAPI app
