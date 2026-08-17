@@ -42,14 +42,18 @@ class Settings(BaseSettings):
 
     def model_post_init(self, __context) -> None:
         # The default key is public (it's in the repo), so in production a
-        # missing SECRET_KEY would let anyone forge admin JWTs; below 32 chars
-        # is under the HS256 minimum (RFC 7518) and brute-forceable. A random
+        # missing SECRET_KEY would let anyone forge admin JWTs. A random
         # per-boot key keeps tokens unforgeable; sessions reset on restart.
-        if os.getenv("RENDER") and (
-            self.secret_key == _DEFAULT_SECRET or len(self.secret_key) < 32
-        ):
+        # (A short-but-secret key is only *warned* about in main.py -- forcing
+        # it ephemeral would log every user out on each Render spin-up.)
+        if os.getenv("RENDER") and self.secret_key.strip() in ("", _DEFAULT_SECRET):
             self.secret_key = secrets.token_urlsafe(64)
             self.secret_key_is_ephemeral = True
+
+    @property
+    def secret_key_is_weak(self) -> bool:
+        """Below the HS256 minimum key length (RFC 7518 §3.2: 256 bits)."""
+        return len(self.secret_key.encode("utf-8")) < 32
 
     @property
     def cors_origin_list(self) -> list[str]:

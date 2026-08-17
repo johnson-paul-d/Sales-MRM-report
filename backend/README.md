@@ -38,7 +38,8 @@ that ever appeared here has been rotated and no longer works.
   (`pv` claim) — changing/resetting a password immediately invalidates every
   token issued before it. On Render, a missing `SECRET_KEY` no longer falls back
   to the repo's known default: a random per-boot key is generated instead (all
-  sessions reset on each restart until the env var is set).
+  sessions reset on each restart until the env var is set). A key under 32 bytes
+  still works but logs a startup warning — rotate it to a 32+ char random value.
 - **Login throttling**: 5 failures / 15 min per email *and* per client IP → 429.
   Behind Render's proxy the client IP is taken from the proxy-appended (rightmost)
   `X-Forwarded-For` entry, so one attacker can't lock out the whole userbase and

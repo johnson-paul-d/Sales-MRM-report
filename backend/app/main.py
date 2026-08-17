@@ -25,11 +25,16 @@ async def lifespan(app: FastAPI):
     # startup on a transient DB/tunnel hiccup -- the schema already exists in
     # normal operation, and the app must still come up so its HTTP port opens
     # (otherwise Render's health check kills the deploy).
+    log = logging.getLogger("uvicorn.error")
     if IS_PROD and settings.secret_key_is_ephemeral:
-        logging.getLogger("uvicorn.error").critical(
-            "SECRET_KEY env var is missing or under 32 chars -- running with a "
-            "random per-boot key, so every restart logs all users out. Set a "
-            "32+ char random SECRET_KEY on Render!")
+        log.critical(
+            "SECRET_KEY env var is not set -- running with a random per-boot key, "
+            "so every restart logs all users out. Set a 32+ char random "
+            "SECRET_KEY on Render!")
+    elif IS_PROD and settings.secret_key_is_weak:
+        log.warning(
+            "SECRET_KEY is under 32 bytes (below the HS256 minimum, RFC 7518). "
+            "Rotate it to a 32+ char random value; all users re-login once.")
     try:
         init_db()
     except Exception as exc:  # noqa: BLE001
