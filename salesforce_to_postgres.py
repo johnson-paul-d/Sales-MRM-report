@@ -660,6 +660,85 @@ KEEP_COMPOUND_FIELDS = {
 }
 
 
+# Refuse the soft-delete sweep if it would hit more than this fraction of the
+# table -- a truncated/partial fetch must never mass-hide live records.
+DELETE_SWEEP_MAX_FRACTION = float(os.getenv("SF_DELETE_SWEEP_MAX_FRACTION", "0.10"))
+
+# Objects the delete sweep must never touch. Salesforce AUTO-ARCHIVES old
+# Activities, and archived rows are excluded from query() exactly like deleted
+# ones -- so "missing from this run" does not mean deleted for these. Measured
+# 2026-08-18: of the rows query() no longer returned, 1214/1241 Tasks and
+# 742/744 Events had ActivityDate older than a year, i.e. archived and still
+# live in Salesforce. Sweeping them would have hidden ~1,956 real historical
+# activities from the visit/activity reports.
+DELETE_SWEEP_EXCLUDE = {"Task", "Event"}
+
+
+def mark_deleted_rows(engine, obj_name, table_name, staging_name, has_is_deleted,
+                      incremental, where_clause, total_processed):
+    """Mark rows that Salesforce no longer returns as IsDeleted = true.
+
+    Salesforce's query() never returns deleted records, so a deleted row simply
+    stops appearing; because the ETL only ever upserts, it would otherwise linger
+    in Postgres forever with IsDeleted = false and keep showing up in every
+    report. Staging holds exactly what this run fetched (it is truncated at the
+    start of each object), so main-minus-staging is the deleted set.
+
+    Only safe for a FULL sync: an incremental/filtered run fetches a subset by
+    design, so everything outside the window would look deleted. Guarded further
+    by a fraction cap, so a partial fetch cannot mass-hide live data.
+    Soft-marks only -- rows are never removed, and the reporting views already
+    filter on `IsDeleted IS NOT TRUE`.
+    """
+    if not has_is_deleted:
+        return 0
+    if obj_name in DELETE_SWEEP_EXCLUDE:
+        logger.info("  Skipping delete sweep for %s (auto-archived object, see DELETE_SWEEP_EXCLUDE)", obj_name)
+        return 0
+    if incremental or where_clause:
+        logger.info("  Skipping delete sweep for %s (incremental/filtered run)", obj_name)
+        return 0
+    if total_processed <= 0:
+        logger.warning("  Skipping delete sweep for %s (nothing fetched this run)", obj_name)
+        return 0
+
+    with engine.begin() as conn:
+        # Restore anything that came back (e.g. undeleted from the Recycle Bin).
+        restored = conn.execute(text(
+            f'UPDATE "{table_name}" AS m SET "IsDeleted" = FALSE '
+            f'FROM "{staging_name}" AS s WHERE m."Id" = s."Id" AND m."IsDeleted" IS TRUE'
+        )).rowcount
+
+        live = conn.execute(text(
+            f'SELECT count(*) FROM "{table_name}" WHERE "IsDeleted" IS NOT TRUE')).scalar() or 0
+        candidates = conn.execute(text(
+            f'SELECT count(*) FROM "{table_name}" AS m WHERE m."IsDeleted" IS NOT TRUE '
+            f'AND NOT EXISTS (SELECT 1 FROM "{staging_name}" AS s WHERE s."Id" = m."Id")')).scalar() or 0
+
+        if candidates == 0:
+            if restored:
+                logger.info("  Delete sweep %s: restored %d previously-deleted row(s)", obj_name, restored)
+            return 0
+
+        fraction = candidates / live if live else 1.0
+        if fraction > DELETE_SWEEP_MAX_FRACTION:
+            logger.error(
+                "  ⚠️ Delete sweep ABORTED for %s: %d of %d rows (%.1f%%) missing from this "
+                "run, above the %.0f%% cap -- suspected partial fetch, nothing marked.",
+                obj_name, candidates, live, fraction * 100, DELETE_SWEEP_MAX_FRACTION * 100)
+            return 0
+
+        marked = conn.execute(text(
+            f'UPDATE "{table_name}" AS m SET "IsDeleted" = TRUE '
+            f'WHERE m."IsDeleted" IS NOT TRUE '
+            f'AND NOT EXISTS (SELECT 1 FROM "{staging_name}" AS s WHERE s."Id" = m."Id")'
+        )).rowcount
+
+    logger.info("  Delete sweep %s: marked %d deleted, restored %d (%.2f%% of %d live)",
+                obj_name, marked, restored, fraction * 100, live)
+    return marked
+
+
 def sync_object(sf, engine, obj_name, fields, incremental=True, sync_mode="CORE", batch_size=50000):
     logger.info("Syncing %s...", obj_name)
     start_time = time.time()
@@ -874,6 +953,13 @@ def sync_object(sf, engine, obj_name, fields, incremental=True, sync_mode="CORE"
                     logger.info("  ✅ Reconciliation: Salesforce (%d) == PostgreSQL (%d)", sf_count, pg_count)
                 else:
                     logger.warning("  ⚠️ Reconciliation: Salesforce (%d) != PostgreSQL (%d)", sf_count, pg_count)
+
+        # Records deleted in Salesforce stop appearing in query() results, so flag
+        # anything this full run didn't return. Deliberately OUTSIDE the upsert
+        # transaction above -- it opens its own connection and would otherwise
+        # block on that transaction's row locks.
+        mark_deleted_rows(engine, obj_name, table_name, staging_name, has_is_deleted,
+                          incremental, where_clause, total_processed)
 
     # ---- Do NOT truncate staging at the end – keep it for debugging ----
     # (We truncated at the beginning, so it's empty for the next run)
