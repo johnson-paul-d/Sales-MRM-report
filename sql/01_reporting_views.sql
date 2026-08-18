@@ -116,8 +116,10 @@ SELECT
     lt.subject                               AS latest_action_task,     -- Opportunity.Latest Action task
     lt.activity_date                         AS action_activity_date,   -- Opportunity.Action activity date
     EXISTS (SELECT 1 FROM quote q WHERE q."OpportunityId" = o."Id"
+              AND q."IsDeleted" IS NOT TRUE
               AND q."Sync_Quote__c" IS TRUE) AS has_synced_quote,
     EXISTS (SELECT 1 FROM quote q WHERE q."OpportunityId" = o."Id"
+              AND q."IsDeleted" IS NOT TRUE
               AND q."Sync_Quote__c" IS TRUE AND UPPER(q."Status") = 'ACCEPTED') AS has_accepted_quote,
     sieger_fy_label(o."CloseDate")           AS close_fy_label,
     sieger_fq_label(o."CloseDate")           AS close_fq_label,
@@ -414,6 +416,7 @@ WITH facts AS (
     FROM opportunity o
     WHERE o."IsDeleted" IS NOT TRUE AND o."CloseDate" IS NOT NULL
       AND o."StageName" = 'Closed Won'      AND EXISTS (SELECT 1 FROM quote q WHERE q."OpportunityId" = o."Id"
+                    AND q."IsDeleted" IS NOT TRUE
                     AND UPPER(q."Status") = 'ACCEPTED' AND q."Sync_Quote__c" IS TRUE)
 
     UNION ALL
@@ -423,7 +426,8 @@ WITH facts AS (
     FROM opportunity o
     WHERE o."IsDeleted" IS NOT TRUE AND o."CloseDate" IS NOT NULL
       AND o."StageName" = 'Closed Lost'
-      AND EXISTS (SELECT 1 FROM quote q WHERE q."OpportunityId" = o."Id" AND q."Sync_Quote__c" IS TRUE)
+      AND EXISTS (SELECT 1 FROM quote q WHERE q."OpportunityId" = o."Id"
+                    AND q."IsDeleted" IS NOT TRUE AND q."Sync_Quote__c" IS TRUE)
 
     UNION ALL
     -- Dropped Value: Dropped opps that have a synced quote
@@ -432,7 +436,8 @@ WITH facts AS (
     FROM opportunity o
     WHERE o."IsDeleted" IS NOT TRUE AND o."CloseDate" IS NOT NULL
       AND o."StageName" = 'Dropped'
-      AND EXISTS (SELECT 1 FROM quote q WHERE q."OpportunityId" = o."Id" AND q."Sync_Quote__c" IS TRUE)
+      AND EXISTS (SELECT 1 FROM quote q WHERE q."OpportunityId" = o."Id"
+                    AND q."IsDeleted" IS NOT TRUE AND q."Sync_Quote__c" IS TRUE)
 )
 SELECT
     f.owner_id,
