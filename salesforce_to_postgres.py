@@ -692,6 +692,28 @@ def mark_deleted_rows(engine, obj_name, table_name, staging_name, has_is_deleted
     """
     if not has_is_deleted:
         return 0
+
+    # Restore FIRST -- ahead of every sweep guard below. This only un-marks rows
+    # Salesforce returned in this run, so it is correct in every mode: on an
+    # excluded object staging holds the full fetch, on an incremental/filtered
+    # run it holds a live subset, and when nothing was fetched it is empty and
+    # this matches no rows.
+    #
+    # It must not sit behind the guards, because the guards are exactly what an
+    # operator reaches for after a bad sweep (add the object to
+    # DELETE_SWEEP_EXCLUDE, or switch back to incremental) -- that would disable
+    # the only code in the repo that can undo it. The normal upsert cannot heal
+    # these rows either: its UPDATE only fires when SystemModstamp differs, and a
+    # row marked in error has an unchanged SystemModstamp by construction.
+    with engine.begin() as conn:
+        restored = conn.execute(text(
+            f'UPDATE "{table_name}" AS m SET "IsDeleted" = FALSE '
+            f'FROM "{staging_name}" AS s WHERE m."Id" = s."Id" AND m."IsDeleted" IS TRUE'
+        )).rowcount
+    if restored:
+        logger.info("  Delete sweep %s: restored %d row(s) that reappeared in Salesforce",
+                    obj_name, restored)
+
     if obj_name in DELETE_SWEEP_EXCLUDE:
         logger.info("  Skipping delete sweep for %s (auto-archived object, see DELETE_SWEEP_EXCLUDE)", obj_name)
         return 0
@@ -703,12 +725,6 @@ def mark_deleted_rows(engine, obj_name, table_name, staging_name, has_is_deleted
         return 0
 
     with engine.begin() as conn:
-        # Restore anything that came back (e.g. undeleted from the Recycle Bin).
-        restored = conn.execute(text(
-            f'UPDATE "{table_name}" AS m SET "IsDeleted" = FALSE '
-            f'FROM "{staging_name}" AS s WHERE m."Id" = s."Id" AND m."IsDeleted" IS TRUE'
-        )).rowcount
-
         live = conn.execute(text(
             f'SELECT count(*) FROM "{table_name}" WHERE "IsDeleted" IS NOT TRUE')).scalar() or 0
         candidates = conn.execute(text(
@@ -716,8 +732,6 @@ def mark_deleted_rows(engine, obj_name, table_name, staging_name, has_is_deleted
             f'AND NOT EXISTS (SELECT 1 FROM "{staging_name}" AS s WHERE s."Id" = m."Id")')).scalar() or 0
 
         if candidates == 0:
-            if restored:
-                logger.info("  Delete sweep %s: restored %d previously-deleted row(s)", obj_name, restored)
             return 0
 
         fraction = candidates / live if live else 1.0
@@ -734,8 +748,8 @@ def mark_deleted_rows(engine, obj_name, table_name, staging_name, has_is_deleted
             f'AND NOT EXISTS (SELECT 1 FROM "{staging_name}" AS s WHERE s."Id" = m."Id")'
         )).rowcount
 
-    logger.info("  Delete sweep %s: marked %d deleted, restored %d (%.2f%% of %d live)",
-                obj_name, marked, restored, fraction * 100, live)
+    logger.info("  Delete sweep %s: marked %d deleted (%.2f%% of %d live)",
+                obj_name, marked, fraction * 100, live)
     return marked
 
 
