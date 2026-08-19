@@ -21,7 +21,12 @@ from app.db import SessionLocal, init_db
 from app.models import Region, AppUser
 from app.security import hash_password
 
-DEFAULT_REGIONS = ["Tamil Nadu", "West", "North", "East", "Karnataka", "Kerala", "Andhra Pradesh"]
+# Kept in step with the regions actually in use in production -- "South" and
+# "Exports" were added through the admin panel after the original seed list.
+# A user with no region is excluded from the team-scoped report pages, so a
+# fresh environment missing a region here silently hides that region's people.
+DEFAULT_REGIONS = ["Tamil Nadu", "West", "North", "South", "East",
+                   "Karnataka", "Kerala", "Andhra Pradesh", "Exports"]
 ADMIN_EMAIL = "admin@sieger.in"
 ADMIN_PASSWORD = os.getenv("SEED_ADMIN_PASSWORD") or secrets.token_urlsafe(12)
 MANAGER_PASSWORD = os.getenv("SEED_MANAGER_PASSWORD") or secrets.token_urlsafe(12)
