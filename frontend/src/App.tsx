@@ -47,6 +47,7 @@ export default function App() {
                     <Route path="/this-month" element={<ReportTablePage cfg={REPORTS['this-month']} />} />
                     <Route path="/last-month" element={<LastMonthPage />} />
                     <Route path="/six-month-plan" element={<ReportTablePage cfg={REPORTS['six-month-plan']} />} />
+                    <Route path="/post-order-visits" element={<ReportTablePage cfg={REPORTS['post-order-visits']} />} />
                     <Route path="/new-opportunity" element={<NewOpportunityPage />} />
                     <Route path="/leads" element={<LeadsPage />} />
                     <Route path="/admin" element={<AdminPage />} />

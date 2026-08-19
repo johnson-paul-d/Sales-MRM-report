@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from ..db import get_db, rows_as_dicts
 from ..reporting import common_filters, build_filters, CommonFilters
-from ..security import get_visibility, Visibility
+from ..security import get_visibility, require_manager, Visibility
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 
@@ -22,6 +22,23 @@ router = APIRouter(prefix="/api/reports", tags=["reports"])
 REGION_JOIN = """
 LEFT JOIN app.user_region ur ON ur.salesforce_user_id = v.owner_id
 LEFT JOIN app.region r        ON r.id = ur.region_id
+"""
+
+# Per-opportunity quote value. Counts ONLY live quotes -- synced, and neither
+# Rejected nor Accepted -- the same rule vw_sales_tracker.open_quotes_value uses,
+# so the pages agree. Summing every line item instead (the old behaviour) added
+# rejected quotes and every superseded revision: 38 of 87 Top Enquiries rows were
+# overstated, several showing crores of "value" with nothing live behind them.
+LIVE_QUOTE_VALUE = """
+LEFT JOIN (
+    SELECT opportunity_id,
+           SUM(total_price) AS total_price,
+           SUM(quantity)    AS quantity
+    FROM vw_quote_line_item
+    WHERE sync_quote IS TRUE
+      AND UPPER(quote_status) NOT IN ('REJECTED', 'ACCEPTED')
+    GROUP BY opportunity_id
+) ql ON ql.opportunity_id = v.opportunity_id
 """
 
 
@@ -39,6 +56,7 @@ def _product_table(where: str, predicate: str, max_cols: list[str],
     return f"""
         SELECT v.owner_id, MAX(v.user_name) AS user_name, ur.region_id, MAX(r.name) AS region_name,
                v.opportunity_name, v.product_name,
+               MAX(v.product_family) AS product_family,
                SUM(v.quantity) AS quantity, SUM(v.total_price) AS total_price,
                {extra}
         FROM vw_quote_line_item v
@@ -104,14 +122,55 @@ def closed_won(vis: Visibility = Depends(get_visibility),
 def closed_lost(vis: Visibility = Depends(get_visibility),
                 f: CommonFilters = Depends(common_filters),
                 db: Session = Depends(get_db)):
+    """Every Closed Lost opportunity, quoted or not.
+
+    Opportunities with a synced quote keep the product+value detail from the
+    quote line items. Those without a quote were previously absent altogether
+    (389 opportunities, ~292 Cr); they now appear with their Opportunity Line
+    Item products where they exist, or as a single name-only row where they do
+    not -- always with the loss reason. `has_quote` drives the page filter.
+    """
     where, params = build_filters(vis, f, owner_col="v.owner_id", division_col="v.division",
                                   date_col="v.close_date", fy_col="v.close_fy_label", month_col="v.close_date")
-    sql = _product_table(where,
+    quoted = _product_table(where,
         "v.stage_name = 'Closed Lost' AND v.sync_quote IS TRUE",
         ["MAX(v.account_name) AS account_name", "MAX(v.stage_name) AS stage_name",
          "MAX(v.close_date) AS close_date", "MAX(v.division) AS division", "MAX(v.remarks) AS remarks",
-         "MAX(v.loss_reason) AS loss_reason"])
-    return {"rows": rows_as_dicts(db, sql, params)}
+         "MAX(v.loss_reason) AS loss_reason", "TRUE AS has_quote"])
+
+    # Same filters, re-bound against vw_opportunity for the unquoted side.
+    where2, params2 = build_filters(vis, f, owner_col="v.owner_id", division_col="v.division",
+                                    date_col="v.close_date", fy_col="v.close_fy_label",
+                                    month_col="v.close_date")
+    unquoted = f"""
+        SELECT v.owner_id, v.user_name, ur.region_id, r.name AS region_name,
+               v.opportunity_name,
+               oli.product_name, oli.product_family,
+               -- Deliberately no quantity/value on the unquoted side: these
+               -- opportunities were never quoted, so their Opportunity Line Item
+               -- prices are not comparable to quoted value and would inflate the
+               -- page's Amount total (~+557 Cr) against a figure that has always
+               -- meant quoted value.
+               NULL::numeric AS quantity, NULL::numeric AS total_price,
+               v.account_name, v.stage_name, v.close_date, v.division, v.remarks,
+               v.loss_reason, FALSE AS has_quote
+        FROM vw_opportunity v
+        {REGION_JOIN}
+        LEFT JOIN LATERAL (
+            -- OpportunityLineItem carries no product name of its own, so both
+            -- the name and the family come from the linked Product2.
+            SELECT p2."Name" AS product_name,
+                   COALESCE(NULLIF(TRIM(p2."Family"), ''), 'Unclassified') AS product_family,
+                   l."Quantity" AS quantity, l."TotalPrice" AS total_price
+            FROM opportunitylineitem l
+            LEFT JOIN product2 p2 ON p2."Id" = l."Product2Id"
+            WHERE l."OpportunityId" = v.opportunity_id AND l."IsDeleted" IS NOT TRUE
+        ) oli ON TRUE
+        {_and(where2, "v.stage_name = 'Closed Lost' AND v.has_synced_quote IS NOT TRUE")}
+    """
+    sql = f"SELECT * FROM ({quoted}) q UNION ALL SELECT * FROM ({unquoted}) n" \
+          " ORDER BY close_date DESC NULLS LAST, opportunity_name"
+    return {"rows": rows_as_dicts(db, sql, {**params, **params2})}
 
 
 # ---------------------------------------------------------------------------
@@ -148,10 +207,7 @@ def open_funnel(vis: Visibility = Depends(get_visibility),
                COALESCE(ql.quantity, 0)    AS quantity
         FROM vw_opportunity v
         {REGION_JOIN}
-        LEFT JOIN (
-            SELECT opportunity_id, SUM(total_price) AS total_price, SUM(quantity) AS quantity
-            FROM vw_quote_line_item GROUP BY opportunity_id
-        ) ql ON ql.opportunity_id = v.opportunity_id
+        {LIVE_QUOTE_VALUE}
         {_and(where, "v.is_open IS TRUE AND v.has_synced_quote IS TRUE")}
         ORDER BY v.opportunity_amount DESC NULLS LAST
     """
@@ -166,20 +222,47 @@ def open_funnel(vis: Visibility = Depends(get_visibility),
         tgt_vis = ("AND (t.salesforce_user_id = ANY(:_tgt_owners) "
                    "OR t.salesforce_user_id IS NULL)")
         tgt_params["_tgt_owners"] = vis.owner_ids or []
+    # Target vs Achieved. "Achieved" is Closed Won value inside the target's own
+    # period and scope (owner target -> that owner; region target -> that region;
+    # neither -> everyone). It deliberately ignores the page's close-date slicers,
+    # because a target is bound to its own period, not to whatever the user is
+    # currently filtering the funnel by.
     targets = rows_as_dicts(db, f"""
+        WITH t AS (
+            SELECT t.salesforce_user_id, t.region_id,
+                   MIN(t.period_start) AS period_start,
+                   MIN(t.period_type)  AS period_type,
+                   SUM(t.target_amount) AS target_amount
+            FROM app.sales_target t
+            WHERE CURRENT_DATE >= t.period_start
+              AND CURRENT_DATE < t.period_start + CASE t.period_type
+                    WHEN 'MONTH'   THEN interval '1 month'
+                    WHEN 'QUARTER' THEN interval '3 months'
+                    ELSE                interval '1 year' END
+              {tgt_vis}
+            GROUP BY t.salesforce_user_id, t.region_id
+        )
         SELECT t.salesforce_user_id, t.region_id,
                COALESCE(u."Name", rg.name, 'All') AS owner,
-               SUM(t.target_amount) AS target_amount
-        FROM app.sales_target t
-        LEFT JOIN "user" u     ON u."Id" = t.salesforce_user_id
+               t.target_amount,
+               COALESCE(w.achieved_amount, 0) AS achieved_amount
+        FROM t
+        LEFT JOIN "user" u      ON u."Id" = t.salesforce_user_id
         LEFT JOIN app.region rg ON rg.id = t.region_id
-        WHERE CURRENT_DATE >= t.period_start
-          AND CURRENT_DATE < t.period_start + CASE t.period_type
-                WHEN 'MONTH'   THEN interval '1 month'
-                WHEN 'QUARTER' THEN interval '3 months'
-                ELSE                interval '1 year' END
-          {tgt_vis}
-        GROUP BY t.salesforce_user_id, t.region_id, u."Name", rg.name
+        LEFT JOIN LATERAL (
+            SELECT SUM(COALESCE(o."Opportunity_Amount__c", 0)) AS achieved_amount
+            FROM opportunity o
+            LEFT JOIN app.user_region our ON our.salesforce_user_id = o."OwnerId"
+            WHERE o."IsDeleted" IS NOT TRUE
+              AND UPPER(o."StageName") = 'CLOSED WON'
+              AND o."CloseDate" >= t.period_start
+              AND o."CloseDate" <  t.period_start + CASE t.period_type
+                    WHEN 'MONTH'   THEN interval '1 month'
+                    WHEN 'QUARTER' THEN interval '3 months'
+                    ELSE                interval '1 year' END
+              AND (t.salesforce_user_id IS NULL OR o."OwnerId" = t.salesforce_user_id)
+              AND (t.region_id IS NULL OR our.region_id = t.region_id)
+        ) w ON TRUE
         ORDER BY 3
     """, tgt_params)
 
@@ -233,7 +316,7 @@ def no_visits(vis: Visibility = Depends(get_visibility),
 @router.get("/top-enquiries")
 def top_enquiries(vis: Visibility = Depends(get_visibility),
                   f: CommonFilters = Depends(common_filters),
-                  limit: int = Query(50, ge=1, le=1000),
+                  limit: int = Query(10, ge=1, le=1000),
                   db: Session = Depends(get_db)):
     where, params = build_filters(vis, f, owner_col="v.owner_id", division_col="v.division",
                                   date_col="v.close_date", fy_col="v.close_fy_label", month_col="v.close_date")
@@ -245,11 +328,8 @@ def top_enquiries(vis: Visibility = Depends(get_visibility),
                COALESCE(ql.quantity, 0)    AS quantity
         FROM vw_opportunity v
         {REGION_JOIN}
-        LEFT JOIN (
-            SELECT opportunity_id, SUM(total_price) AS total_price, SUM(quantity) AS quantity
-            FROM vw_quote_line_item GROUP BY opportunity_id
-        ) ql ON ql.opportunity_id = v.opportunity_id
-        {_and(where, "v.is_open IS TRUE AND COALESCE(ql.total_price, 0) > 50000000")}
+        {LIVE_QUOTE_VALUE}
+        {_and(where, "v.is_open IS TRUE AND COALESCE(ql.total_price, 0) > 0")}
         ORDER BY quote_total_price DESC NULLS LAST
         LIMIT :_limit
     """
@@ -342,6 +422,7 @@ def last_month(vis: Visibility = Depends(get_visibility),
     sql = f"""
         SELECT v.owner_id, MAX(v.user_name) AS user_name, ur.region_id, MAX(r.name) AS region_name,
                v.opportunity_name, v.product_name,
+               MAX(v.product_family) AS product_family,
                SUM(v.quantity) AS quantity, SUM(v.total_price) AS total_price,
                MAX(v.stage_name) AS stage_name, MAX(v.close_date) AS close_date,
                MAX(v.remarks) AS remarks, MAX(v.probability) AS probability,
@@ -383,6 +464,51 @@ def six_month_plan(vis: Visibility = Depends(get_visibility),
          "MAX(v.building_construction_stage) AS building_construction_stage",
          "MAX(v.latest_action_task) AS latest_action_task", "MAX(v.action_activity_date) AS action_activity_date"],
         order="MAX(v.close_date), MAX(v.user_name)")
+    return {"rows": rows_as_dicts(db, sql, params)}
+
+
+# ---------------------------------------------------------------------------
+# POST-ORDER VISITS  (visits made AFTER an order was won) -- managers only
+# ---------------------------------------------------------------------------
+@router.get("/post-order-visits")
+def post_order_visits(vis: Visibility = Depends(require_manager),
+                      f: CommonFilters = Depends(common_filters),
+                      db: Session = Depends(get_db)):
+    """Visit Plan Allocations linked to a Closed Won opportunity, where the
+    visit happened after the close date -- i.e. servicing after the order.
+
+    Scoped to the opportunity owner (so a manager sees their own team's won
+    business) and gated to managers by require_manager.
+    """
+    where, params = build_filters(vis, f, owner_col="v.owner_id", division_col="v.division",
+                                  date_col="v.close_date", fy_col="v.close_fy_label",
+                                  month_col="v.close_date")
+    sql = f"""
+        SELECT v.owner_id, v.user_name, ur.region_id, r.name AS region_name,
+               v.opportunity_name, v.account_name, v.close_date,
+               v.opportunity_amount, v.division,
+               vp.visit_date, vp.days_after_close, vp.visited_by,
+               vp.purpose, vp.visit_notes, vp.visit_status,
+               COUNT(*) OVER (PARTITION BY v.opportunity_id) AS visits_for_opportunity
+        FROM vw_opportunity v
+        {REGION_JOIN}
+        JOIN LATERAL (
+            SELECT vpa."CheckInDate__c"                        AS visit_date,
+                   (vpa."CheckInDate__c" - v.close_date)       AS days_after_close,
+                   vu."Name"                                   AS visited_by,
+                   vpa."Purpose_of_Travel__c"                  AS purpose,
+                   NULLIF(TRIM(COALESCE(vpa."Notes__c", vpa."Description__c", '')), '') AS visit_notes,
+                   vpa."Status__c"                             AS visit_status
+            FROM visit_plan_allocation vpa
+            LEFT JOIN "user" vu ON vu."Id" = vpa."OwnerId"
+            WHERE vpa."Opportunity__c" = v.opportunity_id
+              AND vpa."IsDeleted" IS NOT TRUE
+              AND vpa."CheckInDate__c" IS NOT NULL
+              AND vpa."CheckInDate__c" > v.close_date
+        ) vp ON TRUE
+        {_and(where, "v.is_won IS TRUE")}
+        ORDER BY vp.visit_date DESC, v.opportunity_name
+    """
     return {"rows": rows_as_dicts(db, sql, params)}
 
 

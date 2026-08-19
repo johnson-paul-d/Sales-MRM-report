@@ -12,7 +12,7 @@ export default function ReportTablePage({ cfg }: { cfg: ReportConfig }) {
   const { data, isLoading, error } = useReport(cfg.path, filters)
   const allRows = data?.rows ?? []
 
-  const [stages, setStages] = useState<string[]>([])
+  const [stages, setStages] = useState<string[]>(cfg.defaultStages ?? [])
   const stageOptions = useMemo(
     () => [...new Set(allRows.map((r: any) => r.stage_name).filter(Boolean))].sort() as string[],
     [allRows],
@@ -50,8 +50,11 @@ export default function ReportTablePage({ cfg }: { cfg: ReportConfig }) {
               </FormControl>
             </Box>
           )}
-          {cfg.charts && !isLoading && rows.length > 0 && <ChartStrip rows={rows} specs={cfg.charts} />}
+          {/* Table first: it is what people come to these pages for. Charts
+              read as supporting detail underneath, and this removes a screen
+              of scrolling before any data is visible. */}
           <DataTable rows={rows} columns={cfg.columns} loading={isLoading} />
+          {cfg.charts && !isLoading && rows.length > 0 && <ChartStrip rows={rows} specs={cfg.charts} />}
         </>
       )}
     </ReportShell>
