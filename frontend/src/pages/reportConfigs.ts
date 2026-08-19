@@ -45,7 +45,15 @@ export interface ReportConfig {
   columns: ColDef[]
   charts?: ChartSpec[]
   stageFilter?: boolean   // show a Stage multi-select that filters the page client-side
+  defaultStages?: string[] // stages pre-selected in that multi-select (empty = all)
 }
+
+// Product column: shows the short Product Family, with the full product name
+// (e.g. "CPS - OverGround Puz-000COG6205") revealed on hover. Row grain is
+// unchanged -- still one row per product -- so quantities and values are
+// unaffected; only the label is shorter.
+const productCol = (headerName = 'Product') =>
+  col('product_family', headerName, 'text', { tooltipField: 'product_name' })
 
 const month = (r: Record<string, any>) => String(r.close_date ?? '').slice(0, 7)
 const quoteMonth = (r: Record<string, any>) => String(r.earliest_quote_date ?? '').slice(0, 7)
@@ -59,7 +67,7 @@ export const REPORTS: Record<string, ReportConfig> = {
       // Columns, order + headers exactly as the pbix Closed Won tableEx
       col('user_name', 'User Name'),
       col('opportunity_name', 'Opp name', 'text', { flex: 2 }),
-      col('product_name', 'Product name'),
+      productCol('Product name'),
       col('quantity', 'Car Spaces', 'int'),
       col('total_price', 'Amount', 'inr'),
       col('stage_name', 'StageName'),
@@ -83,9 +91,16 @@ export const REPORTS: Record<string, ReportConfig> = {
       // Columns, order + headers exactly as the pbix Closed Lost tableEx
       col('user_name', 'User Name'),
       col('opportunity_name', 'Opp name', 'text', { flex: 2 }),
-      col('product_name', 'Product'),
+      productCol(),
       col('quantity', 'Car Spaces', 'int'),
       col('total_price', 'Amount', 'inr'),
+      // Quoted vs never-quoted: filterable from the column header, since
+      // unquoted opportunities carry no product value.
+      col('has_quote', 'Has Quote', 'text', {
+        valueFormatter: (p) => (p.value ? 'Yes' : 'No'),
+        width: 120,
+      }),
+      col('loss_reason', 'Loss Reason', 'text', { flex: 2 }),
       col('stage_name', 'StageName'),
       col('close_date', 'CloseDate', 'date'),
       col('remarks', 'Remarks', 'text', { flex: 2 }),
@@ -100,7 +115,7 @@ export const REPORTS: Record<string, ReportConfig> = {
       col('region_name', 'Region'),
       col('opportunity_name', 'Opportunity', 'text', { flex: 2 }),
       col('account_name', 'Account'),
-      col('product_name', 'Product'),
+      productCol(),
       col('quantity', 'Qty', 'int'),
       col('total_price', 'Line Total', 'inr'),
       col('opportunity_amount', 'Opp Amount', 'inr'),
@@ -159,7 +174,7 @@ export const REPORTS: Record<string, ReportConfig> = {
       col('user_name', 'User Name'),
       col('account_name', 'Acc name'),
       col('opportunity_name', 'Opp name', 'text', { flex: 2 }),
-      col('product_name', 'Product'),
+      productCol(),
       col('quantity', 'Car Spaces', 'int'),
       col('total_price', 'Amount', 'inr'),
       col('stage_name', 'StageName'),
@@ -200,7 +215,7 @@ export const REPORTS: Record<string, ReportConfig> = {
       // Columns, order + headers exactly as the pbix This Month tableEx
       col('user_name', 'User Name'),
       col('opportunity_name', 'Opp name', 'text', { flex: 2 }),
-      col('product_name', 'Product'),
+      productCol(),
       col('quantity', 'Car spaces', 'int'),
       col('total_price', 'Amount', 'inr'),
       col('stage_name', 'StageName'),
@@ -225,7 +240,7 @@ export const REPORTS: Record<string, ReportConfig> = {
       // (the selector picks the snapshot; unrenamed pbix fields keep raw names)
       col('user_name', 'User Name'),
       col('opportunity_name', 'Opp name', 'text', { flex: 2 }),
-      col('product_name', 'Product'),
+      productCol(),
       col('quantity', 'Car Spaces', 'int'),
       col('total_price', 'Amount', 'inr'),
       col('stage_name', 'StageName'),
@@ -239,16 +254,42 @@ export const REPORTS: Record<string, ReportConfig> = {
       { title: 'Value by Salesperson', kind: 'bar', groupBy: 'user_name', value: 'total_price', money: true, color: CHART.palette[1], top: 10 },
     ],
   },
+  'post-order-visits': {
+    title: 'Post-Order Visits',
+    subtitle: 'Visits made after an order was won (managers only)',
+    path: 'post-order-visits',
+    columns: [
+      col('user_name', 'Opp Owner'),
+      col('opportunity_name', 'Opp name', 'text', { flex: 2 }),
+      col('account_name', 'Acc name'),
+      col('close_date', 'Order Closed', 'date'),
+      col('visit_date', 'Visit Date', 'date'),
+      col('days_after_close', 'Days After Close', 'int'),
+      col('visited_by', 'Visited By'),
+      col('purpose', 'Purpose', 'text', { flex: 2 }),
+      col('visit_notes', 'Notes', 'text', { flex: 2 }),
+      col('visits_for_opportunity', 'Visits (this opp)', 'int'),
+      col('opportunity_amount', 'Opp amount', 'inr'),
+    ],
+    charts: [
+      { title: 'Post-order visits by Salesperson', kind: 'bar', groupBy: 'visited_by', color: CHART.won, top: 10 },
+      { title: 'Visits by Purpose', kind: 'donut', groupBy: 'purpose' },
+    ],
+  },
   'six-month-plan': {
     title: 'Six Months Booking Plan',
     subtitle: 'Open pipeline closing in the next 6 months',
     path: 'six-month-plan',
+    // Defaults to Proposal only (Hold excluded); the Stage filter above the
+    // table can bring Hold/Design/etc. back in on demand.
+    stageFilter: true,
+    defaultStages: ['Proposal'],
     columns: [
       // Rows then Values exactly as the pbix Six Months Booking Plan matrix
       col('close_month', 'Month', 'text', { valueFormatter: (p) => fmtMonthName(p.value, true) }),
       col('user_name', 'User Name'),
       col('opportunity_name', 'Opp name', 'text', { flex: 2 }),
-      col('product_name', 'Product'),
+      productCol(),
       col('stage_name', 'StageName'),
       col('probability', 'Probability', 'int'),
       col('latest_action_task', 'Next Action', 'text', { flex: 2 }),

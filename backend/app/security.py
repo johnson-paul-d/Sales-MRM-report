@@ -124,3 +124,26 @@ def require_admin(user: AppUser = Depends(get_current_user)) -> AppUser:
     if not user.is_admin:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Admin privileges required")
     return user
+
+
+def require_manager(
+    vis: "Visibility" = Depends(get_visibility),
+    db: Session = Depends(get_db),
+) -> "Visibility":
+    """Manager-only gate: at least one active direct report (or can_view_all).
+
+    Used by the post-order visits report. Deliberately based on the live
+    ManagerId hierarchy rather than the informational `role` label, so it stays
+    correct as the org changes without anyone maintaining a second list.
+    """
+    if vis.can_view_all:
+        return vis
+    if vis.user.salesforce_user_id:
+        reports = db.execute(
+            text('SELECT count(*) FROM "user" WHERE "ManagerId" = :me AND "IsActive" IS TRUE'),
+            {"me": vis.user.salesforce_user_id},
+        ).scalar()
+        if reports:
+            return vis
+    raise HTTPException(status.HTTP_403_FORBIDDEN,
+                        "This report is available to managers only")

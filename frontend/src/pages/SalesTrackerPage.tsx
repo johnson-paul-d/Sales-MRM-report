@@ -150,13 +150,15 @@ export default function SalesTrackerPage() {
             <Tab label="Earliest Quotes" />
           </Tabs>
 
+          {/* Matrix first, chart underneath: the tracker grid is the point of
+              this page, and leading with a 280px chart pushed it below the fold. */}
           {tab === 0 && (
             <>
-              <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
+              <SalesTrackerTree rows={data?.rows ?? []} />
+              <Paper variant="outlined" sx={{ p: 2, mt: 2 }}>
                 <Typography variant="subtitle2" sx={{ mb: 1 }}>Closed Won by Salesperson (top 10)</Typography>
                 <ReactECharts option={wonChart} style={{ height: 280 }} notMerge />
               </Paper>
-              <SalesTrackerTree rows={data?.rows ?? []} />
             </>
           )}
 
@@ -165,11 +167,13 @@ export default function SalesTrackerPage() {
               <Box sx={{ display: 'flex', justifyContent: 'center', my: 6 }}><CircularProgress /></Box>
             ) : (
               <>
-                <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
+                {/* Table first, and it reclaims the ~300px the chart used to take
+                    above it (was calc(100vh - 720px), barely a few rows). */}
+                <DataTable rows={newOpp.data?.rows ?? []} columns={newOppColumns} height="calc(100vh - 420px)" />
+                <Paper variant="outlined" sx={{ p: 2, mt: 2 }}>
                   <Typography variant="subtitle2" sx={{ mb: 1 }}>New Opportunities by Salesperson (last month)</Typography>
                   <ReactECharts option={oppChart} style={{ height: 300 }} notMerge />
                 </Paper>
-                <DataTable rows={newOpp.data?.rows ?? []} columns={newOppColumns} height="calc(100vh - 720px)" />
               </>
             )
           )}

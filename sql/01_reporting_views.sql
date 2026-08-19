@@ -121,6 +121,7 @@ SELECT
     EXISTS (SELECT 1 FROM quote q WHERE q."OpportunityId" = o."Id"
               AND q."IsDeleted" IS NOT TRUE
               AND q."Sync_Quote__c" IS TRUE AND UPPER(q."Status") = 'ACCEPTED') AS has_accepted_quote,
+    o."Loss_Reason__c"                       AS loss_reason,
     sieger_fy_label(o."CloseDate")           AS close_fy_label,
     sieger_fq_label(o."CloseDate")           AS close_fq_label,
     sieger_fy_label((o."CreatedDate")::date) AS created_fy_label
@@ -195,6 +196,10 @@ SELECT
     COALESCE(a."Name", a."Site", a."Contact_Name__c") AS account_name,
     a."BillingCity"       AS billing_city,
     qli."Product_Name__c" AS product_name,
+    -- Product family for the grid column; product_name is kept for the tooltip.
+    -- ~1,400 line items have no family on the linked Product2 (or no Product2
+    -- at all), so they group under "Unclassified" rather than a blank cell.
+    COALESCE(NULLIF(TRIM(p2."Family"), ''), 'Unclassified') AS product_family,
     qli."Quantity"        AS quantity,
     qli."TotalPrice"      AS total_price,
     qli."UnitPrice"       AS unit_price,
@@ -230,6 +235,7 @@ JOIN quote q            ON q."Id" = qli."QuoteId"
 LEFT JOIN opportunity o ON o."Id" = q."OpportunityId"
 LEFT JOIN "user" u      ON u."Id" = o."OwnerId"
 LEFT JOIN account a     ON a."Id" = o."AccountId"
+LEFT JOIN product2 p2   ON p2."Id" = qli."Product2Id"
 LEFT JOIN LATERAL (
     -- LatestCheckin - Opp / Acc (exact DAX)
     SELECT MAX(vp."CheckInDate__c") FILTER (WHERE vp."Opportunity__c" = o."Id")    AS checkin_opp,
@@ -381,7 +387,9 @@ WITH facts AS (
     WHERE o."IsDeleted" IS NOT TRUE AND o."CreatedDate" IS NOT NULL
 
     UNION ALL
-    -- Open Quotes Value: QLI TotalPrice for open, synced quotes on live Sieger Parking opps
+    -- Open Quotes Value: QLI TotalPrice for open, synced quotes on live Sieger Parking opps.
+    -- HOLD is excluded alongside the three closed stages: a held opportunity is
+    -- not live pipeline, and Salesforce already flags Hold as IsClosed.
     SELECT q."OwnerId", date_trunc('month', q."Created_Date__c")::date, o."Division__c",
            'open_quotes_value', COALESCE(qli."TotalPrice", 0)
     FROM quotelineitem qli
@@ -389,7 +397,8 @@ WITH facts AS (
     JOIN opportunity o ON o."Id" = q."OpportunityId"
     WHERE qli."IsDeleted" IS NOT TRUE AND q."IsDeleted" IS NOT TRUE
       AND q."Sync_Quote__c" IS TRUE
-      AND UPPER(q."Status") NOT IN ('REJECTED','ACCEPTED')      AND UPPER(o."StageName") NOT IN ('CLOSED LOST','CLOSED WON','DROPPED')
+      AND UPPER(q."Status") NOT IN ('REJECTED','ACCEPTED')
+      AND UPPER(o."StageName") NOT IN ('CLOSED LOST','CLOSED WON','DROPPED','HOLD')
       AND q."Created_Date__c" IS NOT NULL
 
     UNION ALL

@@ -11,6 +11,7 @@ import RemoveCircleOutlineIcon from '@mui/icons-material/RemoveCircleOutline'
 import FilterAltIcon from '@mui/icons-material/FilterAlt'
 import StarIcon from '@mui/icons-material/Star'
 import EventBusyIcon from '@mui/icons-material/EventBusy'
+import EventAvailableIcon from '@mui/icons-material/EventAvailable'
 import RequestQuoteIcon from '@mui/icons-material/RequestQuote'
 import PersonSearchIcon from '@mui/icons-material/PersonSearch'
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth'
@@ -26,7 +27,7 @@ import { BRAND } from '../theme'
 
 const DRAWER_WIDTH = 244
 
-interface NavItem { path: string; label: string; icon: JSX.Element; adminOnly?: boolean }
+interface NavItem { path: string; label: string; icon: JSX.Element; adminOnly?: boolean; managerOnly?: boolean }
 interface NavGroup { heading: string; items: NavItem[] }
 
 const NAV: NavGroup[] = [
@@ -54,6 +55,7 @@ const NAV: NavGroup[] = [
     heading: 'Outcomes',
     items: [
       { path: '/closed-won', label: 'Closed Won', icon: <EmojiEventsIcon /> },
+      { path: '/post-order-visits', label: 'Post-Order Visits', icon: <EventAvailableIcon />, managerOnly: true },
       { path: '/closed-lost', label: 'Closed Lost', icon: <CancelIcon /> },
       { path: '/dropped', label: 'Dropped', icon: <RemoveCircleOutlineIcon /> },
     ],
@@ -155,7 +157,12 @@ export default function AppLayout() {
 
         <Box sx={{ overflow: 'auto', py: 1 }}>
           {NAV.map((group) => {
-            const items = group.items.filter((n) => !n.adminOnly || user?.is_admin)
+            // A manager is anyone whose visibility covers more than just
+            // themselves (self + at least one report), or who can view all.
+            const isManager = !!user && (user.can_view_all || user.visible_user_count > 1)
+            const items = group.items.filter(
+              (n) => (!n.adminOnly || user?.is_admin) && (!n.managerOnly || isManager),
+            )
             if (!items.length) return null
             return (
               <Box key={group.heading} sx={{ mb: 0.5 }}>

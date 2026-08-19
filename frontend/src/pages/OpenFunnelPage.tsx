@@ -44,11 +44,17 @@ function pivot(
   return { rows, columns }
 }
 
-// PBI Open Funnel target tableEx headers: Owner / Target Million / Amount
+// Target vs Achieved. Values are raw rupees; fmtINR renders them as "₹51.95 Cr"
+// (the old column was hand-divided into millions). Achieved = Closed Won value
+// inside the target's own period, computed server-side.
 const targetColumns: ColDef[] = [
   col('owner', 'Owner', 'text', { minWidth: 160, flex: 1 }),
-  col('target_million', 'Target Million', 'int'),
-  col('amount', 'Amount', 'inr'),
+  col('target_amount', 'Target', 'inr'),
+  col('achieved_amount', 'Achieved (Closed Won)', 'inr'),
+  col('gap_amount', 'Gap', 'inr'),
+  col('achieved_pct', '% of Target', 'int', {
+    valueFormatter: (p) => (p.value == null ? '' : `${p.value}%`),
+  }),
 ]
 
 export default function OpenFunnelPage() {
@@ -68,27 +74,22 @@ export default function OpenFunnelPage() {
     [allRows, stages],
   )
 
-  // Target vs achieved: Amount = the owner's open-funnel value under current filters
+  // Target vs achieved, both in crore. Achieved is Closed Won value for the
+  // target's own period, computed by the API -- it is not affected by the
+  // page's stage/close-date slicers.
   const targetRows = useMemo(() => {
-    const byOwnerId = new Map<string, number>()
-    const byRegionId = new Map<number, number>()
-    let grand = 0
-    for (const r of rows) {
-      const v = Number(r.quote_total_price || 0)
-      grand += v
-      if (r.owner_id) byOwnerId.set(r.owner_id, (byOwnerId.get(r.owner_id) ?? 0) + v)
-      if (r.region_id != null) byRegionId.set(r.region_id, (byRegionId.get(r.region_id) ?? 0) + v)
-    }
-    return (data?.targets ?? []).map((t) => ({
-      owner: t.owner,
-      target_million: Math.round(Number(t.target_amount) / 1_000_000),
-      amount: t.salesforce_user_id
-        ? byOwnerId.get(t.salesforce_user_id) ?? 0
-        : t.region_id != null
-          ? byRegionId.get(t.region_id) ?? 0
-          : grand,
-    }))
-  }, [data, rows])
+    return (data?.targets ?? []).map((t: any) => {
+      const target = Number(t.target_amount) || 0
+      const achieved = Number(t.achieved_amount) || 0
+      return {
+        owner: t.owner,
+        target_amount: target,
+        achieved_amount: achieved,
+        gap_amount: achieved - target,
+        achieved_pct: target > 0 ? Math.round((achieved / target) * 100) : null,
+      }
+    })
+  }, [data])
 
   // PBI matrix 1: User Name x (Financial Year, Financial Quarter) -> Sum(TotalPrice)
   const fyMatrix = useMemo(() => {
@@ -136,9 +137,7 @@ export default function OpenFunnelPage() {
               </Select>
             </FormControl>
           </Box>
-          {cfg.charts && rows.length > 0 && <ChartStrip rows={rows} specs={cfg.charts} />}
-
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '380px 1fr' }, gap: 2, mb: 2 }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '460px 1fr' }, gap: 2, mb: 2 }}>
             <Paper variant="outlined" sx={{ p: 0 }}>
               <Typography variant="subtitle2" sx={{ p: 2, pb: 1 }}>
                 Target vs Achieved {targetRows.length === 0 && '— no active targets (Admin → Targets)'}
@@ -158,12 +157,15 @@ export default function OpenFunnelPage() {
             <DataTable rows={rows} columns={cfg.columns} height={380} />
           </Paper>
 
-          <Paper variant="outlined" sx={{ p: 0 }}>
+          <Paper variant="outlined" sx={{ p: 0, mb: 2 }}>
             <Typography variant="subtitle2" sx={{ p: 2, pb: 1 }}>
               Open quote value by quote-created month
             </Typography>
             <DataTable rows={quoteMatrix.rows} columns={quoteMatrix.columns} height={340} />
           </Paper>
+
+          {/* Charts last: the tables above are what this page is read for. */}
+          {cfg.charts && rows.length > 0 && <ChartStrip rows={rows} specs={cfg.charts} />}
         </>
       )}
     </ReportShell>
