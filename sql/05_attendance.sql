@@ -185,11 +185,22 @@ calc AS (
            vp.first_checkin, vp.last_checkout,
            COALESCE(k.km, 0)                                       AS km_travelled,
            COALESCE(vp.visit_minutes, 0) / 60.0                    AS visit_hours,
-           CASE
-               WHEN COALESCE(k.km, 0) > 1000 THEN COALESCE(k.km, 0) / 300.0
-               WHEN COALESCE(k.km, 0) > 150  THEN COALESCE(k.km, 0) / 45.0
-               ELSE COALESCE(k.km, 0) / 20.0
-           END                                                     AS travel_hours,
+           -- Travel time: CUMULATIVE bands (like tax brackets), not one divisor.
+           --   <=50 km  @ 20 km/h  dense city running
+           --   50-400   @ 45 km/h  highway
+           --   >400     @300 km/h  flight/rail -- 985 km in a day is not a drive
+           -- capped at 10 h so a 4,859 km day cannot outrun the clock.
+           --
+           -- The original single-divisor form was NOT monotonic: 150 km scored
+           -- 7.5 h but 200 km scored 4.4 h, and 950 km scored 21 h while 1,050 km
+           -- scored 3.5 h. Any single divisor with rising speeds drops at every
+           -- band edge; cumulative bands are monotonic by construction.
+           LEAST(
+               LEAST(COALESCE(k.km, 0), 50) / 20.0
+             + GREATEST(LEAST(COALESCE(k.km, 0), 400) - 50, 0) / 45.0
+             + GREATEST(COALESCE(k.km, 0) - 400, 0) / 300.0,
+               10.0
+           )                                                       AS travel_hours,
            COALESCE(df.total_plans, 0) > 0
                AND COALESCE(df.non_hobo_count, 0) = 0              AS is_hobo_only,
            COALESCE(df.is_permission_day, FALSE)                   AS is_permission_day,
@@ -258,7 +269,13 @@ SELECT owner_id,
        -- Status. Order matters, exactly as the DAX SWITCH.
        CASE
            WHEN is_leave_day AND total_working_hours = 0 THEN 'Leave'
+           -- Work done on a rest day is surfaced, not swallowed. The DAX
+           -- returned "Sunday"/"Holiday" before ever looking at the hours, so
+           -- 75 Sundays and 44 holidays with 4h+ of logged work were invisible.
+           WHEN EXTRACT(ISODOW FROM activity_date) = 7
+                AND total_working_hours >= 4            THEN 'Sunday (Worked)'
            WHEN EXTRACT(ISODOW FROM activity_date) = 7  THEN 'Sunday'
+           WHEN is_holiday AND total_working_hours >= 4 THEN 'Holiday (Worked)'
            WHEN is_holiday                              THEN 'Holiday'
            WHEN total_working_hours >= 6                THEN 'Present'
            WHEN total_working_hours >= 4                THEN 'HD'

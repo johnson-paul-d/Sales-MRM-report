@@ -17,6 +17,9 @@ const STATUS_COLOURS: Record<string, string> = {
   Leave: '#5b6b7a',
   Sunday: '#8a8a8a',
   Holiday: '#8a8a8a',
+  // Work on a rest day -- highlighted rather than hidden behind "Sunday".
+  'Sunday (Worked)': '#0b6bb3',
+  'Holiday (Worked)': '#0b6bb3',
   Mismatch: '#c0392b',
   'No Data': '#b0b0b0',
 }
