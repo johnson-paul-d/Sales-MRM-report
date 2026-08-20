@@ -498,7 +498,7 @@ def attendance(vis: Visibility = Depends(get_visibility),
                v.km_travelled, v.travel_hours, v.working_shift, v.shift_hours,
                v.working_hours, v.total_working_hours, v.total_working_hours_dec,
                v.meeting_time, v.work_from_home, v.ho_or_bo,
-               v.number_visits, v.remarks, v.unique_customers,
+               v.number_visits, v.checkout_missed, v.remarks, v.unique_customers,
                v.activity_status, v.has_any_activity,
                ur.region_id, r.name AS region_name
         FROM vw_attendance v
@@ -515,12 +515,13 @@ def attendance(vis: Visibility = Depends(get_visibility),
         s = summary.setdefault(r["user_name"], {
             "user_name": r["user_name"], "region_name": r["region_name"],
             "present": 0, "hd": 0, "leave": 0, "mismatch": 0,
-            "visits": 0, "km": 0.0, "hours": 0.0,
+            "visits": 0, "km": 0.0, "hours": 0.0, "checkout_missed": 0,
         })
         st = (r["activity_status"] or "").lower()
         if st in ("present", "hd", "leave", "mismatch"):
             s[st] += 1
         s["visits"] += r["number_visits"] or 0
+        s["checkout_missed"] += r["checkout_missed"] or 0
         s["km"] += float(r["km_travelled"] or 0)
         s["hours"] += float(r["total_working_hours_dec"] or 0)
     for s in summary.values():

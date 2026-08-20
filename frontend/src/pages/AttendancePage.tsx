@@ -41,6 +41,17 @@ const columns: ColDef[] = [
   col('total_working_hours', 'Total Working Hours', 'text', { minWidth: 160 }),
   col('meeting_time', 'Meeting Time', 'text', { minWidth: 120 }),
   col('number_visits', 'Visits', 'int', { minWidth: 100 }),
+  // Data-entry failure, not a short day: the check-out is missing or landed on
+  // another date, so this day's hours are understated.
+  {
+    field: 'checkout_missed',
+    headerName: 'Checkout Missed',
+    minWidth: 150,
+    type: 'numericColumn',
+    filter: 'agNumberColumnFilter',
+    valueFormatter: (p: any) => (p.value ? `⚠ ${p.value}` : ''),
+    cellStyle: (p: any) => (p.value ? { color: '#c0392b', fontWeight: 700 } : undefined),
+  },
   col('km_travelled', 'KM', 'int', { minWidth: 100 }),
   col('first_checkin', 'First Check-In', 'text', { valueFormatter: (p) => time(p.value), minWidth: 130 }),
   col('last_checkout', 'Last Check-Out', 'text', { valueFormatter: (p) => time(p.value), minWidth: 140 }),
@@ -58,6 +69,7 @@ const summaryColumns: ColDef[] = [
   col('hd', 'Half Day', 'int'),
   col('leave', 'Leave', 'int'),
   col('mismatch', 'Mismatch', 'int'),
+  col('checkout_missed', 'Checkout Missed', 'int'),
   col('visits', 'Visits', 'int'),
   col('km', 'KM', 'int'),
   col('hours', 'Hours', 'int'),

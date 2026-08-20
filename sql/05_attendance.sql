@@ -146,6 +146,23 @@ visit_pairs AS (
       AND checkin_date = checkout_date
     GROUP BY 1, 2
 ),
+-- Missed check-outs. A visit whose check-out is absent, lands on a different
+-- date, or precedes the check-in is a data-entry failure, not a real duration.
+-- visit_pairs deliberately ignores those rows (an unknown end time cannot be
+-- credited as hours), which silently understates the day -- so the day carries
+-- a flag saying why. Measured: 939 with no check-out, 156 checked out on a later
+-- date (the worst runs 42 days), 2 with a check-out before the check-in.
+-- Keyed on the CHECK-IN date, because that is the day the person was working.
+missed_checkouts AS (
+    SELECT user_id, checkin_date AS activity_date, count(*) AS checkout_missed
+    FROM vpa_credited
+    WHERE user_id IS NOT NULL
+      AND checkin_ist IS NOT NULL
+      AND (checkout_ist IS NULL
+           OR checkout_date <> checkin_date
+           OR checkout_ist < checkin_ist)
+    GROUP BY 1, 2
+),
 -- Number of visits: real customer calls only (DAX excludes WFH/Travel/BO/HO,
 -- requires a check-in, and either a Unique Customer or purpose = Scouting).
 visit_counts AS (
@@ -206,6 +223,7 @@ calc AS (
            COALESCE(df.is_permission_day, FALSE)                   AS is_permission_day,
            COALESCE(df.is_leave_day, FALSE)                        AS is_leave_day,
            COALESCE(vc.number_visits, 0)                           AS number_visits,
+           COALESCE(mc.checkout_missed, 0)                         AS checkout_missed,
            COALESCE(vp.meeting_minutes, 0) / 60.0                  AS meeting_hours,
            vp.wfh_in, vp.wfh_out, vp.hobo_in, vp.hobo_out,
            cu.unique_customers,
@@ -221,6 +239,7 @@ calc AS (
     LEFT JOIN day_flags df     ON df.user_id = g.user_id AND df.activity_date = g.activity_date
     LEFT JOIN visit_pairs vp   ON vp.user_id = g.user_id AND vp.activity_date = g.activity_date
     LEFT JOIN visit_counts vc  ON vc.user_id = g.user_id AND vc.activity_date = g.activity_date
+    LEFT JOIN missed_checkouts mc ON mc.user_id = g.user_id AND mc.activity_date = g.activity_date
     LEFT JOIN customers cu     ON cu.user_id = g.user_id AND cu.activity_date = g.activity_date
     LEFT JOIN remarks r        ON r.user_id = g.user_id AND r.activity_date = g.activity_date
     LEFT JOIN app.holiday h    ON h.holiday_date = g.activity_date
@@ -264,6 +283,7 @@ SELECT owner_id,
             to_char(make_interval(mins => (round(EXTRACT(EPOCH FROM (hobo_out - hobo_in)) / 60))::int), 'HH24:MI') END
                                                                    AS ho_or_bo,
        number_visits,
+       checkout_missed,
        remarks,
        unique_customers,
        -- Status. Order matters, exactly as the DAX SWITCH.
