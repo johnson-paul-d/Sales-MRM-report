@@ -468,6 +468,69 @@ def six_month_plan(vis: Visibility = Depends(get_visibility),
 
 
 # ---------------------------------------------------------------------------
+# ATTENDANCE  (per user per day: in/out, hours, visits, status)
+# ---------------------------------------------------------------------------
+@router.get("/attendance")
+def attendance(vis: Visibility = Depends(get_visibility),
+               f: CommonFilters = Depends(common_filters),
+               month: str | None = Query(None, description="YYYY-MM (default: current month)"),
+               include_empty: bool = Query(False, description="include days with no activity at all"),
+               db: Session = Depends(get_db)):
+    """Daily attendance per user, replicating the Power BI ActivitySummary table.
+
+    Always windowed to one month -- the underlying view spans every user x every
+    day since Oct 2024, so an unbounded query would return ~80k rows.
+    Visibility-scoped like every other report: a salesperson sees their own days,
+    a manager sees their team, can_view_all sees everyone.
+    """
+    where, params = build_filters(vis, f, owner_col="v.owner_id")
+    params["_month"] = month or f.month  # FilterBar month wins if the caller sent one
+    month_pred = ("to_char(v.activity_date, 'YYYY-MM') = :_month" if params["_month"]
+                  else "date_trunc('month', v.activity_date) = date_trunc('month', CURRENT_DATE)")
+    if not params["_month"]:
+        params.pop("_month")
+    if not include_empty:
+        month_pred += " AND v.has_any_activity IS TRUE"
+
+    sql = f"""
+        SELECT v.owner_id, v.user_name, v.activity_date,
+               v.in_time, v.out_time, v.first_checkin, v.last_checkout,
+               v.km_travelled, v.travel_hours, v.working_shift, v.shift_hours,
+               v.working_hours, v.total_working_hours, v.total_working_hours_dec,
+               v.meeting_time, v.work_from_home, v.ho_or_bo,
+               v.number_visits, v.remarks, v.unique_customers,
+               v.activity_status, v.has_any_activity,
+               ur.region_id, r.name AS region_name
+        FROM vw_attendance v
+        LEFT JOIN app.user_region ur ON ur.salesforce_user_id = v.owner_id
+        LEFT JOIN app.region r        ON r.id = ur.region_id
+        {_and(where, month_pred)}
+        ORDER BY v.activity_date DESC, v.user_name
+    """
+    rows = rows_as_dicts(db, sql, params)
+
+    # Per-person totals for the summary strip above the table.
+    summary: dict = {}
+    for r in rows:
+        s = summary.setdefault(r["user_name"], {
+            "user_name": r["user_name"], "region_name": r["region_name"],
+            "present": 0, "hd": 0, "leave": 0, "mismatch": 0,
+            "visits": 0, "km": 0.0, "hours": 0.0,
+        })
+        st = (r["activity_status"] or "").lower()
+        if st in ("present", "hd", "leave", "mismatch"):
+            s[st] += 1
+        s["visits"] += r["number_visits"] or 0
+        s["km"] += float(r["km_travelled"] or 0)
+        s["hours"] += float(r["total_working_hours_dec"] or 0)
+    for s in summary.values():
+        s["km"] = round(s["km"], 1)
+        s["hours"] = round(s["hours"], 1)
+
+    return {"rows": rows, "summary": sorted(summary.values(), key=lambda x: x["user_name"])}
+
+
+# ---------------------------------------------------------------------------
 # POST-ORDER VISITS  (visits made AFTER an order was won) -- managers only
 # ---------------------------------------------------------------------------
 @router.get("/post-order-visits")

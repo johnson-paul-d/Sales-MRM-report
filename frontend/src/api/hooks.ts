@@ -61,6 +61,26 @@ export interface OpenFunnelResponse {
   // Owner x quote-created-month cells for the PBI matrix
   by_quote_month: { user_name: string; year_month: string; total_price: number }[]
 }
+export interface AttendanceResponse {
+  rows: any[]
+  summary: {
+    user_name: string; region_name: string | null
+    present: number; hd: number; leave: number; mismatch: number
+    visits: number; km: number; hours: number
+  }[]
+}
+
+/** Attendance is always month-scoped; include_empty adds no-activity days. */
+export const useAttendance = (f?: ReportFilters & { include_empty?: boolean }) =>
+  useQuery({
+    queryKey: ['attendance', f],
+    queryFn: async () => {
+      const p = new URLSearchParams(toParams(f))
+      if (f?.include_empty) p.set('include_empty', 'true')
+      return (await api.get<AttendanceResponse>(`/reports/attendance?${p.toString()}`)).data
+    },
+  })
+
 export const useOpenFunnel = (f?: ReportFilters) =>
   useQuery({
     queryKey: ['open-funnel-full', f],

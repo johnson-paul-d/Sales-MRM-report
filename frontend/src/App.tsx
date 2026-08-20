@@ -12,6 +12,7 @@ import ReportTablePage from './pages/ReportTablePage'
 import LeadsPage from './pages/LeadsPage'
 import NewOpportunityPage from './pages/NewOpportunityPage'
 import ClosedLostPage from './pages/ClosedLostPage'
+import AttendancePage from './pages/AttendancePage'
 import LastMonthPage from './pages/LastMonthPage'
 import OpenFunnelPage from './pages/OpenFunnelPage'
 import OverviewPage from './pages/OverviewPage'
@@ -48,6 +49,7 @@ export default function App() {
                     <Route path="/last-month" element={<LastMonthPage />} />
                     <Route path="/six-month-plan" element={<ReportTablePage cfg={REPORTS['six-month-plan']} />} />
                     <Route path="/post-order-visits" element={<ReportTablePage cfg={REPORTS['post-order-visits']} />} />
+                    <Route path="/attendance" element={<AttendancePage />} />
                     <Route path="/new-opportunity" element={<NewOpportunityPage />} />
                     <Route path="/leads" element={<LeadsPage />} />
                     <Route path="/admin" element={<AdminPage />} />
