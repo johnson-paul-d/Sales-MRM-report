@@ -44,7 +44,7 @@ cp frontend/.env.example frontend/.env   # VITE_API_BASE
 python sql/apply_reporting_views.py
 ```
 
-### 3. Backend — FastAPI on :8000
+### 3. Backend — FastAPI on :8001
 
 ```bash
 cd backend
@@ -52,10 +52,10 @@ python -m venv .venv
 .venv\Scripts\activate            # Windows (use source .venv/bin/activate on *nix)
 pip install -r requirements.txt
 python seed.py                    # creates the app schema, regions, seed accounts (idempotent)
-uvicorn app.main:app --reload --port 8000
+uvicorn app.main:app --reload --port 8001
 ```
 
-Interactive API docs: http://localhost:8000/docs
+Interactive API docs: http://localhost:8001/docs
 
 ### 4. Frontend — Vite on :5173
 
@@ -65,7 +65,8 @@ npm install
 npm run dev
 ```
 
-The dev server proxies `/api` to the backend at `http://127.0.0.1:8000`.
+The dev server proxies `/api` to the backend at `http://127.0.0.1:8001`
+(local dev avoids :8000, which belongs to Sieger Design Operations).
 
 ## Security model
 

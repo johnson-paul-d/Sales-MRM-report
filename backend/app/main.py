@@ -1,8 +1,10 @@
 """FastAPI application entrypoint.
 
 Run (from the backend/ directory):
-    uvicorn app.main:app --reload --port 8000
-Docs at http://localhost:8000/docs (disabled in production)
+    uvicorn app.main:app --reload --port 8001
+Docs at http://localhost:8001/docs (disabled in production)
+(Local dev uses :8001 -- :8000 belongs to Sieger Design Operations.
+Render production binds $PORT via entrypoint.sh.)
 """
 import logging
 import os

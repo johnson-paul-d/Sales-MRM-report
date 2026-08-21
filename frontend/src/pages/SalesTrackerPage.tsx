@@ -128,7 +128,7 @@ export default function SalesTrackerPage() {
   return (
     <ReportShell subtitle="KPIs by salesperson — scoped to the data you can see">
       {error ? (
-        <Alert severity="error">Failed to load. Is the API running on port 8000?</Alert>
+        <Alert severity="error">Failed to load. Is the API running on port 8001?</Alert>
       ) : isLoading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}><CircularProgress /></Box>
       ) : (

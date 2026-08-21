@@ -6,12 +6,12 @@ Salesforce-hierarchy security. React frontend consumes this.
 ## Run
 
 ```bash
-# from the backend/ directory
-.venv\Scripts\python.exe -m uvicorn app.main:app --app-dir . --host 127.0.0.1 --port 8000 --reload
+# from the backend/ directory  (:8001 — :8000 belongs to Sieger Design Operations)
+.venv\Scripts\python.exe -m uvicorn app.main:app --app-dir . --host 127.0.0.1 --port 8001 --reload
 ```
 
-- API base: `http://127.0.0.1:8000/api`
-- Interactive docs: `http://127.0.0.1:8000/docs`
+- API base: `http://127.0.0.1:8001/api`
+- Interactive docs: `http://127.0.0.1:8001/docs`
 
 ## First-time setup
 
