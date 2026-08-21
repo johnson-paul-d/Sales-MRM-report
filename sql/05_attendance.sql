@@ -129,12 +129,57 @@ day_flags AS (
            bool_or(purpose = 'Leave' AND visit_date = activity_date)                  AS is_leave_day
     FROM day_plans GROUP BY 1, 2
 ),
+-- Usable same-day spans, credited to the owner and to any co-visitor.
+visit_spans AS (
+    SELECT user_id, checkin_date AS activity_date, checkin_ist AS s, checkout_ist AS e,
+           (purpose IS NULL OR purpose NOT IN
+            ('Work From Home','HO Visit','Branch Office Visit','Travel')) AS is_meeting
+    FROM vpa_credited
+    WHERE user_id IS NOT NULL AND checkin_ist IS NOT NULL AND checkout_ist IS NOT NULL
+      AND checkin_date = checkout_date AND checkout_ist > checkin_ist
+),
+-- You cannot be in two visits at once, so summing raw durations double-counts
+-- the same wall-clock time -- 1,920 hours across this dataset. Take the UNION of
+-- the intervals instead: a new "island" starts whenever a visit begins after the
+-- running maximum end time of everything before it.
+visit_islands AS (
+    SELECT user_id, activity_date, s, e, is_meeting,
+           sum(CASE WHEN prev_e IS NULL OR s > prev_e THEN 1 ELSE 0 END)
+               OVER (PARTITION BY user_id, activity_date ORDER BY s, e) AS island
+    FROM (
+        SELECT vs.*,
+               max(e) OVER (PARTITION BY user_id, activity_date ORDER BY s, e
+                            ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS prev_e
+        FROM visit_spans vs
+    ) z
+),
+visit_merged AS (
+    SELECT user_id, activity_date, sum(EXTRACT(EPOCH FROM (mx - mn)) / 60.0) AS visit_minutes
+    FROM (SELECT user_id, activity_date, island, min(s) AS mn, max(e) AS mx
+          FROM visit_islands GROUP BY 1, 2, 3) x
+    GROUP BY 1, 2
+),
+-- Meeting time merges over the meeting-eligible subset on its own, since the
+-- islands of a subset are not the islands of the whole.
+meeting_merged AS (
+    SELECT user_id, activity_date, sum(EXTRACT(EPOCH FROM (mx - mn)) / 60.0) AS meeting_minutes
+    FROM (
+        SELECT user_id, activity_date, island, min(s) AS mn, max(e) AS mx
+        FROM (
+            SELECT user_id, activity_date, s, e,
+                   sum(CASE WHEN prev_e IS NULL OR s > prev_e THEN 1 ELSE 0 END)
+                       OVER (PARTITION BY user_id, activity_date ORDER BY s, e) AS island
+            FROM (
+                SELECT vs.*,
+                       max(e) OVER (PARTITION BY user_id, activity_date ORDER BY s, e
+                                    ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS prev_e
+                FROM visit_spans vs WHERE vs.is_meeting
+            ) z
+        ) y GROUP BY 1, 2, 3
+    ) x GROUP BY 1, 2
+),
 visit_pairs AS (
     SELECT user_id, checkin_date AS activity_date,
-           sum(EXTRACT(EPOCH FROM (checkout_ist - checkin_ist)) / 60.0)               AS visit_minutes,
-           sum(EXTRACT(EPOCH FROM (checkout_ist - checkin_ist)) / 60.0)
-               FILTER (WHERE purpose IS NULL OR purpose NOT IN
-                       ('Work From Home','HO Visit','Branch Office Visit','Travel'))  AS meeting_minutes,
            min(checkin_ist)                                                           AS first_checkin,
            max(checkout_ist)                                                          AS last_checkout,
            min(checkin_ist)  FILTER (WHERE purpose = 'Work From Home')                AS wfh_in,
@@ -201,7 +246,7 @@ calc AS (
            ws.in_time, ws.out_time,
            vp.first_checkin, vp.last_checkout,
            COALESCE(k.km, 0)                                       AS km_travelled,
-           COALESCE(vp.visit_minutes, 0) / 60.0                    AS visit_hours,
+           COALESCE(vm.visit_minutes, 0) / 60.0                    AS visit_hours,
            -- Travel time: CUMULATIVE bands (like tax brackets), not one divisor.
            --   <=50 km  @ 20 km/h  dense city running
            --   50-400   @ 45 km/h  highway
@@ -224,7 +269,7 @@ calc AS (
            COALESCE(df.is_leave_day, FALSE)                        AS is_leave_day,
            COALESCE(vc.number_visits, 0)                           AS number_visits,
            COALESCE(mc.checkout_missed, 0)                         AS checkout_missed,
-           COALESCE(vp.meeting_minutes, 0) / 60.0                  AS meeting_hours,
+           COALESCE(mm.meeting_minutes, 0) / 60.0                  AS meeting_hours,
            vp.wfh_in, vp.wfh_out, vp.hobo_in, vp.hobo_out,
            cu.unique_customers,
            CASE WHEN r.purpose_rows = 1 THEN r.single_purpose ELSE r.remarks END AS remarks,
@@ -238,6 +283,8 @@ calc AS (
     LEFT JOIN km_by_day k      ON k.owner_id = g.user_id AND k.created_date_ist = g.activity_date
     LEFT JOIN day_flags df     ON df.user_id = g.user_id AND df.activity_date = g.activity_date
     LEFT JOIN visit_pairs vp   ON vp.user_id = g.user_id AND vp.activity_date = g.activity_date
+    LEFT JOIN visit_merged vm  ON vm.user_id = g.user_id AND vm.activity_date = g.activity_date
+    LEFT JOIN meeting_merged mm ON mm.user_id = g.user_id AND mm.activity_date = g.activity_date
     LEFT JOIN visit_counts vc  ON vc.user_id = g.user_id AND vc.activity_date = g.activity_date
     LEFT JOIN missed_checkouts mc ON mc.user_id = g.user_id AND mc.activity_date = g.activity_date
     LEFT JOIN customers cu     ON cu.user_id = g.user_id AND cu.activity_date = g.activity_date
@@ -247,8 +294,14 @@ calc AS (
 totals AS (
     SELECT c.*,
            -- HO/BO-only days exclude travel; Permission adds two hours.
-           (CASE WHEN c.is_hobo_only THEN c.visit_hours ELSE c.visit_hours + c.travel_hours END)
-             + CASE WHEN c.is_permission_day THEN 2 ELSE 0 END     AS total_working_hours,
+           -- Capped at 16h: a day cannot contain more. The cap only bites well
+           -- above the 6h "Present" line, so it can never downgrade anyone -- it
+           -- just stops the report printing 25- and 37-hour days.
+           LEAST(
+               (CASE WHEN c.is_hobo_only THEN c.visit_hours ELSE c.visit_hours + c.travel_hours END)
+                 + CASE WHEN c.is_permission_day THEN 2 ELSE 0 END,
+               16.0
+           )                                                       AS total_working_hours,
            CASE WHEN c.in_time IS NOT NULL AND c.out_time IS NOT NULL
                 THEN EXTRACT(EPOCH FROM (c.out_time - c.in_time)) / 3600.0 END AS raw_work_hours
     FROM calc c
