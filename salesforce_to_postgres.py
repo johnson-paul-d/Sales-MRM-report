@@ -108,6 +108,10 @@ CORE_OBJECTS = [
     # ActionPlan object is empty in this org (verified 2026-08-05: 0 rows vs 3,450/4,003).
     "LabsActionPlans__ActionPlan__c",
     "LabsActionPlans__APTask__c",
+    # Start Work / End Work stamps + travel distance, per user per day. Source
+    # for the attendance report (IN/OUT times and KM travelled); Visit Plan
+    # Allocation's own Distance_Travel_KM__c is empty across all 27k rows.
+    "Activity_Tracker__c",
 ]
 
 # ============================================================

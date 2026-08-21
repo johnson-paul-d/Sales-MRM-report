@@ -12,6 +12,7 @@ import FilterAltIcon from '@mui/icons-material/FilterAlt'
 import StarIcon from '@mui/icons-material/Star'
 import EventBusyIcon from '@mui/icons-material/EventBusy'
 import EventAvailableIcon from '@mui/icons-material/EventAvailable'
+import HowToRegIcon from '@mui/icons-material/HowToReg'
 import RequestQuoteIcon from '@mui/icons-material/RequestQuote'
 import PersonSearchIcon from '@mui/icons-material/PersonSearch'
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth'
@@ -56,6 +57,7 @@ const NAV: NavGroup[] = [
     items: [
       { path: '/closed-won', label: 'Closed Won', icon: <EmojiEventsIcon /> },
       { path: '/post-order-visits', label: 'Post-Order Visits', icon: <EventAvailableIcon />, managerOnly: true },
+      { path: '/attendance', label: 'Attendance', icon: <HowToRegIcon /> },
       { path: '/closed-lost', label: 'Closed Lost', icon: <CancelIcon /> },
       { path: '/dropped', label: 'Dropped', icon: <RemoveCircleOutlineIcon /> },
     ],
