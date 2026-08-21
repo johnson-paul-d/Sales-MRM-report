@@ -371,7 +371,7 @@ def this_month(vis: Visibility = Depends(get_visibility),
                  " AND v.close_date >= date_trunc('month', CURRENT_DATE)"
                  " AND v.close_date < date_trunc('month', CURRENT_DATE) + interval '1 month'")
     pred = ("v.sync_quote IS TRUE AND UPPER(v.quote_status) NOT IN ('REJECTED','ACCEPTED') "
-            "AND v.is_open IS TRUE AND ur.region_id IS NOT NULL" + date_pred)
+            "AND v.is_open IS TRUE" + date_pred)
     sql = _product_table(where, pred,
         ["MAX(v.stage_name) AS stage_name", "MAX(v.close_date) AS close_date",
          "MAX(v.probability) AS probability", "MAX(v.project_stage) AS project_stage",
@@ -413,9 +413,9 @@ def last_month(vis: Visibility = Depends(get_visibility),
         hist_window = ("fc.close_date_historical >= date_trunc('month', CAST(:_snap AS date)) "
                        "AND fc.close_date_historical < date_trunc('month', CAST(:_snap AS date)) + interval '1 month'")
 
-    # Same filters as the Power BI page (synced, not rejected, CPS team, PBI bad-opp exclusions).
+    # Same filters as the Power BI page (synced, not rejected, PBI bad-opp
+    # exclusions). Region is a slicer, not a gate (user decision 2026-08-21).
     pred = ("v.sync_quote IS TRUE AND UPPER(v.quote_status) <> 'REJECTED' "
-            "AND ur.region_id IS NOT NULL "
             "AND v.opportunity_name NOT IN "
             "('AIRFORCE ADMINSTRATIVE COLLEGE-','HTC GLOBAL @ GUINDY','LIFESTYLE BUILDING') "
             "AND " + hist_window)
@@ -455,8 +455,7 @@ def six_month_plan(vis: Visibility = Depends(get_visibility),
                  " AND v.close_date >= date_trunc('month', CURRENT_DATE) + interval '1 month'"
                  " AND v.close_date < date_trunc('month', CURRENT_DATE) + interval '7 months'")
     pred = ("v.sync_quote IS TRUE AND UPPER(v.quote_status) NOT IN ('REJECTED','ACCEPTED') "
-            "AND v.stage_name NOT IN ('Closed Lost', 'Closed Won', 'Dropped') "
-            "AND ur.region_id IS NOT NULL" + date_pred)
+            "AND v.stage_name NOT IN ('Closed Lost', 'Closed Won', 'Dropped')" + date_pred)
     sql = _product_table(where, pred,
         ["to_char(MAX(v.close_date), 'YYYY-MM') AS close_month", "MAX(v.close_date) AS close_date",
          "MAX(v.stage_name) AS stage_name", "MAX(v.probability) AS probability",
@@ -589,7 +588,9 @@ def new_opportunity(vis: Visibility = Depends(get_visibility),
     date_pred = ("" if f.month else
                  " AND v.created_date_only >= date_trunc('month', CURRENT_DATE) - interval '1 month'"
                  " AND v.created_date_only < date_trunc('month', CURRENT_DATE)")
-    pred = "ur.region_id IS NOT NULL" + date_pred
+    # Region is a slicer, not a gate (user decision 2026-08-21); TRUE keeps the
+    # predicate non-empty when the month filter suppresses date_pred.
+    pred = "TRUE" + date_pred
     sql = f"""
         SELECT v.owner_id, v.user_name, ur.region_id, r.name AS region_name,
                v.opportunity_name, v.stage_name, v.created_date_only, v.division,
@@ -647,8 +648,9 @@ def leads(vis: Visibility = Depends(get_visibility),
         {where}
     """, params)
 
-    # Donut + pivots: PBI visual filters (team + created >= FY start)
-    scoped = _and(where, f"ur.region_id IS NOT NULL AND v.created_date >= {LEADS_PAGE_DATE_FLOOR}")
+    # Donut + pivots: created >= FY start. Region is a slicer, not a gate
+    # (user decision 2026-08-21 -- the old team gate hid region-less owners).
+    scoped = _and(where, f"v.created_date >= {LEADS_PAGE_DATE_FLOOR}")
     counts = ("COUNT(*) AS total_leads, "
               "COUNT(*) FILTER (WHERE UPPER(v.status) = 'QUALIFIED') AS converted_leads")
 
